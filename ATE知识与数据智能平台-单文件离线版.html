@@ -1,0 +1,1867 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="ATE 知识与数据智能平台技术架构、实现路线与数据流转设计">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%2309090b'/%3E%3Cpath d='M8 9h14v18h20V9h14v46H42V38H22v17H8z' fill='%23ff5b00'/%3E%3C/svg%3E">
+  <title>技术方案</title>
+  <style>:root {
+  --black: #08090b;
+  --black-2: #0e1115;
+  --graphite: #161a20;
+  --line-dark: #2a3038;
+  --paper: #f2f1ed;
+  --white: #ffffff;
+  --ink: #101217;
+  --muted: #737982;
+  --orange: #ff5b00;
+  --orange-soft: #ff8a4a;
+  --blue: #2f6fff;
+  --blue-dark: #124fc4;
+  --cyan: #11a8a0;
+  --green: #31c48d;
+  --border: #d6d5cf;
+  --sidebar: 224px;
+  --topbar: 66px;
+  font-family: Inter, "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--black);
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--black); }
+button { font: inherit; }
+.mono { font-family: "IBM Plex Mono", "JetBrains Mono", Consolas, monospace; letter-spacing: .08em; }
+[hidden] { display: none !important; }
+
+.app-shell { min-height: 100vh; }
+.topbar {
+  position: fixed; inset: 0 0 auto 0; height: var(--topbar); z-index: 30;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 26px; color: #fff; background: rgba(8,9,11,.96);
+  border-bottom: 1px solid #272b31; backdrop-filter: blur(18px);
+}
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; color: #08090b; background: var(--orange); font-weight: 900; }
+.brand-name { display: flex; flex-direction: column; line-height: 1.05; }
+.brand-name strong { font-size: 15px; letter-spacing: .05em; }
+.brand-name small { margin-top: 5px; color: #777e88; font-size: 10px; letter-spacing: .24em; }
+.menu-toggle { display: none; color: #fff; border: 0; background: none; font-size: 22px; cursor: pointer; }
+.top-status { display: flex; align-items: center; gap: 11px; color: #8c929a; font-size: 10px; }
+.top-status i { width: 3px; height: 3px; background: var(--orange); border-radius: 50%; }
+
+.workspace { padding-top: var(--topbar); }
+.sidebar {
+  position: fixed; z-index: 20; top: var(--topbar); bottom: 0; left: 0; width: var(--sidebar);
+  padding: 27px 18px; color: #fff; background: #0a0c0f; border-right: 1px solid #252930;
+  display: flex; flex-direction: column;
+}
+.nav-index { color: #575e67; font-size: 9px; padding: 0 10px 18px; }
+.nav { display: grid; gap: 4px; }
+.nav-button {
+  appearance: none; display: grid; grid-template-columns: 32px 1fr; align-items: center; gap: 6px;
+  min-height: 48px; padding: 0 10px; color: #8e949d; background: transparent; border: 0;
+  border-left: 2px solid transparent; text-align: left; cursor: pointer; transition: .2s ease;
+}
+.nav-button b { color: #4d535b; font: 700 11px/1 Consolas, monospace; }
+.nav-button span { font-size: 14px; font-weight: 700; }
+.nav-button:hover { color: #fff; background: #13171c; }
+.nav-button.active { color: #fff; background: linear-gradient(90deg, rgba(255,91,0,.15), transparent); border-left-color: var(--orange); }
+.nav-button.active b { color: var(--orange); }
+.sidebar-foot { margin-top: auto; padding: 18px 10px 4px; border-top: 1px solid #242931; }
+.sidebar-foot span { display: block; color: var(--orange); font-size: 9px; margin-bottom: 10px; }
+.sidebar-foot strong { color: #a6abb3; font-size: 12px; line-height: 1.7; }
+
+.content { margin-left: var(--sidebar); min-height: calc(100vh - var(--topbar)); background: var(--paper); }
+.view { min-height: calc(100vh - var(--topbar)); }
+
+/* Overview poster */
+.poster-view {
+  position: relative; overflow: hidden; min-height: calc(100vh - var(--topbar)); color: #fff;
+  background:
+    radial-gradient(circle at 82% 22%, rgba(255,91,0,.18), transparent 26%),
+    linear-gradient(116deg, #090a0c 0%, #0c0e11 56%, #13100e 100%);
+  padding: 72px 58px 0;
+}
+.poster-view::before {
+  content: ""; position: absolute; inset: 0 0 190px 42%; opacity: .5;
+  background:
+    linear-gradient(145deg, transparent 49.7%, rgba(255,91,0,.5) 50%, transparent 50.3%),
+    repeating-linear-gradient(90deg, transparent 0 49px, rgba(255,255,255,.045) 50px),
+    repeating-linear-gradient(0deg, transparent 0 49px, rgba(255,255,255,.035) 50px);
+  transform: perspective(520px) rotateY(-9deg) rotateX(3deg) scale(1.08);
+  transform-origin: right center;
+}
+.poster-view::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 1px, transparent 1px 4px); }
+.poster-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px); background-size: 120px 120px; mask-image: linear-gradient(90deg, #000, transparent 72%); }
+.poster-copy { position: relative; z-index: 2; max-width: 850px; }
+.eyebrow { display: inline-block; padding: 10px 14px; color: #151515; background: var(--orange); font-size: 10px; font-weight: 900; }
+.poster-copy h1 { margin: 32px 0 18px; font-family: "Bahnschrift Condensed", Impact, sans-serif; font-size: clamp(58px, 7vw, 104px); line-height: .91; letter-spacing: -.035em; text-transform: uppercase; }
+.poster-copy h1 span { color: var(--orange); }
+.poster-lead { max-width: 720px; color: #bec2c8; font-size: 20px; line-height: 1.75; }
+.poster-rule { width: 72%; height: 1px; margin: 29px 0 24px; background: linear-gradient(90deg, var(--orange), #3a3f46 35%, transparent); }
+.poster-principle { display: grid; grid-template-columns: 92px 1fr; max-width: 760px; color: #adb2b9; line-height: 1.7; }
+.poster-principle strong { color: #fff; }
+.poster-side { position: absolute; z-index: 3; top: 68px; right: 42px; width: 205px; padding: 18px; background: rgba(6,7,9,.78); border: 1px solid #31363d; }
+.poster-code { color: var(--orange); font-size: 8px; margin-bottom: 16px; }
+.poster-metric { display: grid; padding: 15px 0; border-top: 1px solid #252a31; }
+.poster-metric strong { font-family: "Bahnschrift Condensed", Impact, sans-serif; font-size: 31px; }
+.poster-metric span { color: #898f98; font-size: 11px; }
+.capability-strip { position: relative; z-index: 4; display: grid; grid-template-columns: repeat(4,1fr); margin: 64px -58px 0; background: #07080a; border-top: 1px solid #2c3036; border-bottom: 1px solid #2c3036; }
+.evolution-step { position: relative; min-height: 116px; padding: 23px 28px; border-right: 1px solid #292e35; }
+.evolution-step::after { content: "/"; position: absolute; right: -5px; top: 43px; z-index: 1; color: var(--orange); font: 800 24px Consolas; }
+.evolution-step:last-child::after { display: none; }
+.evolution-step em { display: block; color: var(--orange); font: normal 10px Consolas; }
+.evolution-step strong { display: block; margin: 8px 0; font-size: 18px; }
+.evolution-step span { color: #747a83; font-size: 12px; }
+.overview-apps { position: relative; z-index: 3; display: grid; grid-template-columns: repeat(3,1fr); margin: 0 -58px; background: var(--paper); color: var(--ink); }
+.overview-apps article { min-height: 174px; padding: 30px 34px; border-right: 1px solid var(--border); }
+.overview-apps span { color: var(--orange); font-size: 9px; }
+.overview-apps strong { display: block; margin: 12px 0; font-size: 21px; }
+.overview-apps p { margin: 0; color: #676d76; font-size: 14px; line-height: 1.65; }
+
+/* Heads and tabs */
+.page-head { min-height: 192px; padding: 48px 54px 34px; display: flex; justify-content: space-between; align-items: flex-end; }
+.page-head h1 { margin: 9px 0 7px; font-family: "Bahnschrift Condensed", "Microsoft YaHei", sans-serif; font-size: clamp(42px,5vw,68px); line-height: 1; letter-spacing: -.035em; }
+.page-head p { margin: 0; font-size: 16px; }
+.section-no { color: var(--orange); font-size: 10px; }
+.dark-head { color: #fff; background: #0a0c0f; border-bottom: 1px solid #292e35; }
+.dark-head p { color: #9298a1; }
+.light-head { color: var(--ink); background: var(--paper); border-bottom: 1px solid var(--border); }
+.light-head p { color: #717780; }
+.evolution-head { color: #fff; background: linear-gradient(105deg,#090a0c,#16110f); border-bottom: 1px solid #33363b; }
+.evolution-head p { color: #9da2aa; }
+.head-note { color: #5f6670; font-size: 9px; }
+.tabs { display: flex; gap: 0; overflow-x: auto; padding: 0 54px; }
+.runtime-tabs { scrollbar-width: thin; scroll-snap-type: x proximity; }
+.runtime-tabs .tab-button { min-width: 132px; scroll-snap-align: start; white-space: nowrap; }
+.dark-tabs { background: #0a0c0f; border-bottom: 1px solid #272c32; }
+.light-tabs { background: var(--paper); border-bottom: 1px solid var(--border); }
+.tab-button { position: relative; min-width: 130px; padding: 18px 22px; border: 0; background: transparent; color: #777e87; font-size: 14px; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.tab-button::after { content: ""; position: absolute; left: 20px; right: 20px; bottom: 0; height: 3px; background: transparent; }
+.tab-button.active { color: var(--orange); }
+.tab-button.active::after { background: var(--orange); }
+
+/* Architecture */
+.blueprint { padding: 34px 42px 48px; color: #fff; background-color: #101318; background-image: linear-gradient(rgba(47,111,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(47,111,255,.07) 1px, transparent 1px); background-size: 32px 32px; }
+.arch-layer { display: grid; grid-template-columns: 125px 1fr; margin-bottom: 10px; border: 1px solid #303844; background: rgba(12,15,19,.92); }
+.layer-label { padding: 20px 16px; border-right: 1px solid #303844; display: flex; flex-direction: column; justify-content: center; }
+.layer-label b { color: var(--orange); font: 800 11px Consolas; }
+.layer-label span { margin-top: 8px; font-weight: 800; }
+.arch-items { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; padding: 12px; }
+.arch-items.six { grid-template-columns: repeat(6,1fr); }
+.arch-items.four { grid-template-columns: repeat(4,1fr); }
+.arch-items > div { min-height: 74px; padding: 14px; border: 1px solid #33445b; background: linear-gradient(145deg,rgba(47,111,255,.15),rgba(47,111,255,.03)); }
+.compute-layer .arch-items > div { border-color: #236e6b; background: linear-gradient(145deg,rgba(17,168,160,.16),rgba(17,168,160,.03)); }
+.model-layer .arch-items > div { border-color: #6a4b86; background: linear-gradient(145deg,rgba(127,82,162,.17),rgba(127,82,162,.03)); }
+.data-layer .arch-items > div { border-color: #714326; background: linear-gradient(145deg,rgba(255,91,0,.12),rgba(255,91,0,.02)); }
+.arch-items strong,.arch-items small { display: block; }
+.arch-items strong { font-size: 14px; }
+.arch-items small { margin-top: 9px; color: #8f98a4; font-size: 11px; line-height: 1.45; }
+.arch-bus { margin: 2px 0 10px 125px; padding: 8px; color: #6584aa; border-left: 1px solid #345274; font-size: 8px; text-align: center; }
+.governance-bar { display: flex; align-items: center; gap: 20px; margin-top: 12px; padding: 16px 18px; border: 1px solid #70401f; background: rgba(255,91,0,.08); }
+.governance-bar strong { color: var(--orange); }
+.governance-bar span { color: #9da4ad; font-size: 13px; }
+
+.light-canvas { padding: 40px 54px 58px; background: var(--paper); }
+.section-title span { color: var(--orange); font-size: 9px; }
+.section-title h2 { margin: 9px 0 28px; font-size: 30px; }
+.storage-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.storage-grid article { position: relative; min-height: 190px; padding: 24px; background: #fff; border: 1px solid var(--border); border-top: 4px solid var(--blue); }
+.storage-grid article:nth-child(4),.storage-grid article:nth-child(5) { border-top-color: var(--cyan); }
+.storage-grid article:nth-child(6) { border-top-color: var(--orange); }
+.storage-grid b { position: absolute; right: 18px; top: 18px; color: #d3d4d6; font: 900 24px Consolas; }
+.storage-grid strong { display: block; font-size: 20px; }
+.storage-grid p { color: #5e646c; font-size: 14px; line-height: 1.65; }
+.storage-grid small { color: var(--orange); font-size: 11px; }
+.decision-line,.contract-rule,.metric-note { display: grid; grid-template-columns: 150px 1fr; margin-top: 18px; padding: 18px 22px; color: #fff; background: var(--black); }
+.decision-line strong,.contract-rule strong,.metric-note strong { color: var(--orange); }
+
+/* Evolution */
+.evolution-rail { padding: 34px 54px 20px; background: #111419; }
+.rail-stage { display: grid; grid-template-columns: 92px 1fr; color: #fff; border-top: 1px solid #343941; }
+.rail-stage:last-child { border-bottom: 1px solid #343941; }
+.stage-no { display: grid; place-items: center; color: var(--orange); font-size: 34px; border-right: 1px solid #343941; }
+.stage-copy { position: relative; padding: 23px 28px; }
+.stage-copy::before { content: ""; position: absolute; left: -1px; top: 20px; bottom: 20px; width: 3px; background: var(--orange); }
+.stage-rag1 .stage-copy::before { background: var(--blue); }
+.stage-rag2 .stage-copy::before { background: var(--cyan); }
+.stage-rag3 .stage-copy::before { background: var(--orange); }
+.stage-copy > span { color: #69717c; font-size: 8px; }
+.stage-copy h2 { margin: 6px 0; font-size: 25px; }
+.stage-copy p { max-width: 950px; margin: 0; color: #a2a8b0; font-size: 14px; line-height: 1.65; }
+.stage-output { margin-top: 12px; color: #fff; font-size: 12px; font-weight: 800; }
+.shared-core { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 20px 54px; color: #fff; background: #08090b; }
+.shared-core strong { margin-right: 16px; color: var(--orange); }
+.shared-core span { padding: 8px 12px; border: 1px solid #343941; color: #9ba1aa; font-size: 12px; }
+.evolution-summary { display: grid; grid-template-columns: repeat(3,1fr); background: var(--paper); }
+.evolution-summary b { padding: 26px; border-right: 1px solid var(--border); text-align: center; }
+
+/* Flow */
+.flow-canvas { min-height: 520px; padding: 38px 42px 55px; color: #fff; background-color: #111419; background-image: linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px); background-size: 40px 40px; }
+.flow-title span { color: var(--orange); font-size: 9px; }
+.flow-title h2 { margin: 8px 0 28px; font-size: 30px; }
+.flow-row { display: grid; grid-template-columns: repeat(11,auto); align-items: center; gap: 8px; }
+.flow-row > div { min-width: 120px; min-height: 126px; padding: 18px 14px; background: #0a0c0f; border: 1px solid #38404a; border-top: 3px solid var(--blue); }
+.flow-row i,.message-map > i,.dependency-track i,.evaluation-loop i { color: var(--orange); font-style: normal; font-size: 22px; }
+.flow-row b,.pipeline-grid b,.agent-loop b,.quality-levels b,.govern-grid b { display: block; color: var(--orange); font: 800 10px Consolas; }
+.flow-row strong,.pipeline-grid strong,.agent-loop strong { display: block; margin: 11px 0; font-size: 15px; }
+.flow-row small,.pipeline-grid small,.agent-loop small { color: #8f96a0; line-height: 1.55; }
+.branch-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 24px; }
+.branch-grid article { padding: 18px; background: rgba(47,111,255,.08); border: 1px solid #31445e; }
+.branch-grid p { margin: 7px 0 0; color: #949ca7; font-size: 13px; }
+.gate-line,.case-schema,.capability-line { display: flex; align-items: center; gap: 18px; margin-top: 20px; padding: 16px 18px; border: 1px solid #70401f; background: rgba(255,91,0,.08); }
+.gate-line b,.capability-line strong { color: var(--orange); }
+.gate-line span { color: #a9aeb5; font-size: 13px; }
+.pipeline-grid { display: grid; grid-template-columns: repeat(6,1fr); gap: 9px; }
+.pipeline-grid > div { min-height: 155px; padding: 18px; background: #0a0c0f; border: 1px solid #32404e; border-top: 3px solid var(--cyan); }
+.artifact-line { display: grid; grid-template-columns: repeat(4,1fr); margin-top: 18px; color: #748291; font: 9px Consolas; text-align: center; }
+.case-schema { color: #a7acb4; font-size: 10px; justify-content: center; }
+.agent-task { padding: 18px; margin-bottom: 20px; background: #08090b; border-left: 4px solid var(--orange); font-size: 20px; font-weight: 800; text-align: center; }
+.agent-loop { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+.agent-loop > div { min-height: 105px; padding: 17px; background: #0a0c0f; border: 1px solid #343c46; }
+.agent-loop > div:nth-child(7) { border-left: 3px solid var(--cyan); }
+.agent-loop > div:last-child { background: var(--orange); color: #111; }
+.agent-loop > div:last-child b,.agent-loop > div:last-child small { color: #111; }
+.capability-line { flex-wrap: wrap; }
+.capability-line span { padding: 5px 9px; border: 1px solid #5b3923; color: #c3c6ca; font-size: 12px; }
+.message-map { display: grid; grid-template-columns: 1fr auto 1.4fr auto 2fr; align-items: center; gap: 15px; }
+.message-map > div { padding: 22px; border: 1px solid #34404d; background: #0a0c0f; }
+.message-map strong,.message-map small { display: block; }
+.message-map small { margin-top: 10px; color: #8f96a0; line-height: 1.6; }
+.workers { display: grid; grid-template-columns: repeat(2,1fr); gap: 7px; }
+.workers span { padding: 10px; color: #9aa1aa; border: 1px solid #2f3741; font-size: 12px; }
+.state-rail,.dependency-track,.evaluation-loop { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 25px; padding: 15px; background: #08090b; }
+.state-rail span,.dependency-track span,.evaluation-loop span { color: #c1c5ca; font: 10px Consolas; }
+.compensation-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-top: 20px; }
+.compensation-grid article { padding: 18px; border-top: 3px solid var(--orange); background: #0a0c0f; }
+.compensation-grid p { color: #8d949e; font-size: 12px; line-height: 1.55; }
+
+/* Roadmap and interfaces */
+.workpack-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+.workpack-grid article { min-height: 190px; padding: 21px; background: #fff; border: 1px solid var(--border); border-top: 4px solid var(--orange); }
+.workpack-grid span { color: var(--orange); font: 800 10px Consolas; }
+.workpack-grid strong { display: block; margin: 13px 0; font-size: 18px; }
+.workpack-grid p { color: #646a72; font-size: 13px; line-height: 1.55; }
+.workpack-grid small { display: block; margin-top: 14px; color: var(--blue-dark); font-weight: 800; line-height: 1.45; }
+.dependency-track { margin-top: 20px; color: #fff; }
+.stack-table { border-top: 4px solid var(--orange); }
+.stack-row { display: grid; grid-template-columns: 150px 1.35fr 1fr; gap: 20px; align-items: center; padding: 19px 20px; background: #fff; border: 1px solid var(--border); border-top: 0; }
+.stack-row b { color: var(--orange); }
+.stack-row strong { font-size: 14px; }
+.stack-row span { color: #737982; font-size: 12px; }
+.benchmark-callout { display: grid; grid-template-columns: 200px 1fr; margin-top: 20px; padding: 24px; color: #fff; background: var(--black); }
+.benchmark-callout strong { color: var(--orange); font-size: 18px; }
+.benchmark-callout p { margin: 0; color: #a9aeb5; line-height: 1.65; }
+.api-list { display: grid; gap: 9px; }
+.api-list > div { display: grid; grid-template-columns: 62px 280px 1fr; align-items: center; gap: 16px; padding: 15px 18px; background: #fff; border: 1px solid var(--border); }
+.api-list span { color: var(--orange); font: 900 11px Consolas; }
+.api-list code { color: var(--blue-dark); font-weight: 800; }
+.api-list p { margin: 0; color: #686e76; font-size: 13px; }
+.schema-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; }
+.schema-grid article { overflow: hidden; background: #101318; border: 1px solid #303842; }
+.schema-grid article > span { display: block; padding: 12px 16px; color: var(--orange); border-bottom: 1px solid #303842; font-size: 9px; }
+.schema-grid pre { overflow: auto; margin: 0; padding: 18px; color: #cbd2dc; font: 12px/1.65 Consolas, monospace; }
+.error-domains { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 18px; }
+.error-domains span { padding: 8px 11px; color: #626871; background: #fff; border: 1px solid var(--border); font: 10px Consolas; }
+
+/* Quality */
+.quality-canvas { padding: 40px 48px 56px; color: #fff; background: #111419; }
+.quality-levels { display: grid; grid-template-columns: repeat(5,1fr); }
+.quality-levels article { min-height: 180px; padding: 22px; background: #0a0c0f; border: 1px solid #343a43; border-right: 0; }
+.quality-levels article:last-child { border-right: 1px solid #343a43; }
+.quality-levels strong,.govern-grid strong { display: block; margin: 14px 0; font-size: 18px; }
+.quality-levels p,.govern-grid p { color: #8f96a0; font-size: 13px; line-height: 1.6; }
+.redline-bar { display: flex; align-items: center; gap: 10px; margin-top: 20px; padding: 18px; background: rgba(255,91,0,.09); border: 1px solid #703d1d; }
+.redline-bar strong { color: var(--orange); margin-right: 12px; }
+.redline-bar span { padding: 6px 10px; color: #c0c4ca; border: 1px solid #563620; font-size: 12px; }
+.metric-matrix { background: #fff; border-top: 4px solid var(--orange); }
+.metric-matrix > div { display: grid; grid-template-columns: 140px 180px 1fr; border: 1px solid var(--border); border-top: 0; }
+.metric-matrix > div > * { margin: 0; padding: 15px 18px; border-right: 1px solid var(--border); }
+.metric-matrix > div > *:last-child { border-right: 0; }
+.metric-matrix span { color: var(--blue-dark); font-weight: 900; }
+.metric-matrix p { color: #666c74; font-size: 13px; }
+.metric-head { background: var(--black); color: #fff; }
+.metric-head b:first-child { color: var(--orange); }
+.govern-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+.govern-grid article { min-height: 185px; padding: 22px; background: #0a0c0f; border-top: 3px solid var(--blue); }
+.trace-band { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 22px; padding: 18px; border: 1px solid #36404b; }
+.trace-band strong { color: var(--orange); margin-right: 14px; }
+.trace-band span { padding: 7px 10px; color: #a3a9b1; background: #0a0c0f; font-size: 11px; }
+.closing-statement { margin: 55px 0 10px; font-family: "Bahnschrift Condensed", Impact, sans-serif; font-size: 40px; line-height: 1.05; text-align: center; }
+.closing-statement span { color: var(--orange); }
+
+/* Module-level runtime explorer */
+.flow-explorer { min-height: 760px; padding: 28px 32px 34px; color: #f5f7fa; background: #0a0d11; background-image: linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px); background-size: 32px 32px; }
+.flow-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; margin-bottom: 18px; }
+.flow-toolbar h2 { margin: 6px 0; font-family: "Bahnschrift Condensed", Impact, sans-serif; font-size: 31px; letter-spacing: .02em; }
+.flow-toolbar p { max-width: 780px; margin: 0; color: #929ba7; font-size: 13px; line-height: 1.6; }
+.flow-eyebrow { color: var(--orange); font-size: 10px; letter-spacing: .18em; }
+.flow-actions { display: flex; flex: 0 0 auto; gap: 8px; }
+.flow-actions button { min-width: 76px; padding: 10px 13px; color: #dbe2ea; background: #151a21; border: 1px solid #343d48; cursor: pointer; font: 700 11px/1.1 inherit; }
+.flow-actions button:first-child { color: #101318; background: var(--orange); border-color: var(--orange); }
+.flow-actions button:hover { border-color: #6c7887; transform: translateY(-1px); }
+.flow-legend { display: flex; align-items: center; gap: 20px; min-height: 40px; padding: 0 13px; background: #101419; border: 1px solid #29313b; }
+.flow-legend span { position: relative; padding-left: 21px; color: #9ea8b4; font-size: 11px; }
+.flow-legend span::before { position: absolute; left: 0; top: 50%; width: 13px; height: 3px; content: ""; transform: translateY(-50%); box-shadow: 0 0 8px currentColor; }
+.flow-legend .sync::before { color: #38bdf8; background: #38bdf8; }
+.flow-legend .async::before { color: #ff5a12; background: #ff5a12; }
+.flow-legend .data::before { color: #14b8a6; background: #14b8a6; }
+.flow-legend .loop::before { color: #a78bfa; background: #a78bfa; }
+.flow-legend .gate::before { color: #f59e0b; background: #f59e0b; }
+.flow-legend .failure::before { color: #d55757; background: #d55757; }
+.flow-legend b { margin-left: auto; color: #f4f6f8; font-size: 10px; letter-spacing: .12em; }
+.flow-workbench { display: grid; grid-template-columns: minmax(0,1fr) 330px; min-height: 560px; border: 1px solid #29313b; border-top: 0; }
+.flow-viewport { position: relative; overflow: auto; min-width: 0; height: 560px; background: radial-gradient(circle at 40% 25%,rgba(56,189,248,.055),transparent 36%),#080b0f; scrollbar-color: #3d4652 #101419; }
+.flow-stage { position: relative; min-width: 100%; }
+.graph-lane { position: absolute; left: 0; z-index: 0; border-bottom: 1px solid rgba(132,147,166,.13); background: linear-gradient(90deg,rgba(22,28,36,.76),rgba(9,12,16,.3)); }
+.graph-lane:nth-child(even) { background: linear-gradient(90deg,rgba(15,20,27,.88),rgba(9,12,16,.2)); }
+.graph-lane > span { position: sticky; left: 0; z-index: 4; display: inline-flex; flex-direction: column; justify-content: center; width: 112px; height: 100%; padding-left: 18px; color: #7f8996; background: linear-gradient(90deg,#10151c 72%,transparent); font-size: 11px; letter-spacing: .05em; }
+.graph-lane b { display: block; margin-bottom: 5px; color: #4c9fd1; font: 700 9px/1 Consolas, monospace; letter-spacing: .16em; }
+.flow-svg { position: absolute; inset: 0; z-index: 1; overflow: visible; pointer-events: none; }
+.graph-edge { color: #38bdf8; }
+.graph-edge.async { color: #ff5a12; }
+.graph-edge.data { color: #14b8a6; }
+.graph-edge.loop { color: #a78bfa; }
+.graph-edge.failure { color: #d55757; }
+.edge-base { fill: none; stroke: #303944; stroke-width: 1.4; opacity: .72; }
+.edge-trail { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; opacity: .12; }
+.graph-edge.complete .edge-trail { opacity: .45; }
+.graph-edge.active .edge-base { stroke: currentColor; stroke-width: 5; opacity: .16; filter: blur(2px); }
+.graph-edge.active .edge-trail { opacity: 1; stroke-width: 2.4; stroke-dasharray: 3 13 22 13; filter: drop-shadow(0 0 5px currentColor); animation: flow-dash .72s linear infinite; }
+.graph-edge text { fill: #747f8c; font: 9px Consolas, monospace; letter-spacing: .06em; }
+.edge-particle { fill: currentColor; filter: drop-shadow(0 0 6px currentColor) drop-shadow(0 0 12px currentColor); }
+.edge-particle.tail { opacity: .45; }
+@keyframes flow-dash { to { stroke-dashoffset: -51; } }
+.graph-node { position: absolute; z-index: 2; width: 160px; height: 76px; padding: 11px 12px; color: #e8edf2; background: rgba(15,20,27,.96); border: 1px solid #36404b; border-left: 3px solid #3b82f6; box-shadow: 0 8px 22px rgba(0,0,0,.26); text-align: left; cursor: pointer; transition: border-color .18s ease,box-shadow .18s ease,transform .18s ease; }
+.graph-node.kernel { border-left-color: #8b5cf6; }
+.graph-node.service { border-left-color: #14b8a6; }
+.graph-node.model { border-left-color: #a78bfa; }
+.graph-node.storage { border-left-color: #f59e0b; }
+.graph-node.gate { border-color: #d89a32; border-left-color: #f59e0b; background: linear-gradient(135deg,#1b1710,#11161d); clip-path: polygon(8% 0,92% 0,100% 50%,92% 100%,8% 100%,0 50%); }
+.graph-node.exception { border-color: #a74343; border-left-color: #d55757; background: #1b1113; }
+.graph-node .node-index { display: block; margin-bottom: 7px; color: #697687; font-size: 8px; letter-spacing: .12em; }
+.graph-node strong { display: block; overflow: hidden; margin-bottom: 6px; font-size: 12px; line-height: 1.1; text-overflow: ellipsis; white-space: nowrap; }
+.graph-node code { display: block; overflow: hidden; color: #7f8b98; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.graph-node:hover,.graph-node.selected { border-color: #7e8a98; transform: translateY(-2px); }
+.graph-node.active { color: #fff; border-color: var(--orange); border-left-color: var(--orange); box-shadow: 0 0 0 1px rgba(255,90,18,.22),0 0 22px rgba(255,90,18,.25),0 12px 28px rgba(0,0,0,.36); }
+.graph-node.active::after { position: absolute; inset: -5px; content: ""; border: 1px solid rgba(255,90,18,.42); animation: node-pulse 1.15s ease-out infinite; }
+@keyframes node-pulse { from { opacity: .8; transform: scale(.97); } to { opacity: 0; transform: scale(1.08); } }
+.flow-inspector { padding: 25px 22px; background: #11161d; border-left: 1px solid #29313b; }
+.inspector-kicker { color: var(--orange); font-size: 9px; letter-spacing: .18em; }
+.flow-inspector h3 { margin: 11px 0 8px; font-size: 22px; }
+.flow-inspector > code { display: inline-block; padding: 6px 8px; color: #64c8fa; background: #081018; border: 1px solid #263d4d; font-size: 11px; }
+.flow-inspector dl { margin: 24px 0 0; }
+.flow-inspector dl div { padding: 14px 0; border-top: 1px solid #2a323c; }
+.flow-inspector dt { margin-bottom: 7px; color: #778392; font: 700 9px/1 Consolas, monospace; letter-spacing: .13em; text-transform: uppercase; }
+.flow-inspector dd { margin: 0; color: #c7cdd5; font-size: 12px; line-height: 1.65; }
+.flow-inspector dl div:last-child dd { color: #eab676; }
+.flow-payload { display: grid; grid-template-columns: 280px 1fr; gap: 20px; align-items: center; min-height: 76px; padding: 14px 18px; background: #0e1319; border: 1px solid #29313b; border-top: 0; }
+.flow-payload span { display: block; margin-bottom: 7px; color: #657383; font-size: 8px; letter-spacing: .16em; }
+.flow-payload strong { color: #e6ebf0; font-size: 12px; }
+.flow-payload code { overflow: auto; padding: 11px 13px; color: #6dd5c8; background: #07100f; border-left: 2px solid #14b8a6; font: 11px/1.45 Consolas, monospace; white-space: nowrap; }
+
+/* Linked DFD / PFD execution design */
+.execution-explorer { min-height: 780px; padding: 26px 30px 34px; color: #edf2f7; background: #090c10; background-image: linear-gradient(rgba(255,255,255,.024) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.024) 1px,transparent 1px); background-size: 28px 28px; }
+.execution-toolbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.execution-toolbar h2 { margin: 5px 0; font-family: "Bahnschrift Condensed",Impact,sans-serif; font-size: 30px; }
+.execution-toolbar p { max-width: 760px; margin: 0; color: #8f99a6; font-size: 13px; }
+.execution-eyebrow { color: var(--orange); font-size: 9px; letter-spacing: .18em; }
+.execution-controls { display: flex; align-items: flex-end; gap: 8px; }
+.execution-controls label { display: grid; gap: 5px; color: #74808d; font: 9px Consolas,monospace; letter-spacing: .1em; }
+.execution-controls select,.execution-controls button { height: 38px; padding: 0 12px; color: #dce3ea; background: #141a21; border: 1px solid #34404c; font: 700 11px inherit; cursor: pointer; }
+.execution-controls button[data-execution-action="play"] { color: #111; background: var(--orange); border-color: var(--orange); }
+.execution-status { display: flex; align-items: center; gap: 17px; margin-top: 18px; min-height: 40px; padding: 0 13px; background: #10151b; border: 1px solid #29323c; }
+.execution-status span { display: flex; align-items: center; gap: 7px; color: #939daa; font-size: 10px; }
+.execution-status i { width: 12px; height: 4px; background: #38bdf8; box-shadow: 0 0 8px currentColor; }
+.execution-status .status-function { color: #ff5a12; background: #ff5a12; }.execution-status .status-store { color: #14b8a6; background: #14b8a6; }.execution-status .status-error { color: #d55757; background: #d55757; }
+.execution-status b { margin-left: auto; font-size: 9px; letter-spacing: .12em; }
+.execution-mobile-switch { display: none; }
+.execution-grid { display: grid; grid-template-columns: minmax(0,1.12fr) minmax(350px,.88fr); height: 610px; border: 1px solid #29323c; border-top: 0; }
+.execution-panel { min-width: 0; overflow: hidden; background: rgba(8,12,17,.88); }
+.execution-panel + .execution-panel { border-left: 1px solid #29323c; }
+.execution-panel > header { display: flex; justify-content: space-between; padding: 12px 15px; background: #111820; border-bottom: 1px solid #29323c; }
+.execution-panel > header span { color: #5688a8; font-size: 8px; letter-spacing: .16em; }.execution-panel > header strong { font-size: 12px; }
+[data-dfd-panel] { height: calc(100% - 42px); overflow: auto; padding: 22px; }
+.dfd-entities { display: flex; justify-content: space-between; gap: 12px; }
+.dfd-entity,.dfd-store,.dfd-process { color: #e4ebf2; background: #111820; border: 1px solid #384552; text-align: left; }
+.dfd-entity { width: 44%; padding: 12px; border-style: dashed; }.dfd-entity small,.dfd-store small { display: block; margin-bottom: 5px; color: #647384; font: 8px Consolas; letter-spacing: .1em; }
+.dfd-processes { display: flex; align-items: stretch; gap: 4px; margin: 38px 0; }
+.dfd-process { position: relative; flex: 1; min-width: 92px; padding: 13px 10px; border-left: 3px solid #3b82f6; cursor: pointer; transition: .18s ease; }
+.dfd-process small { display: block; color: #4f91bd; font: 8px Consolas; }.dfd-process strong { display: block; margin: 6px 0; font-size: 11px; }.dfd-process code { color: #748394; font-size: 8px; }
+.dfd-process.active { border-color: var(--orange); box-shadow: 0 0 20px rgba(255,90,18,.24); transform: translateY(-3px); }
+.dfd-arrow { align-self: center; color: #4c91bc; font-style: normal; }
+.dfd-active-flow { position: relative; overflow: hidden; min-height: 54px; padding: 10px 12px; color: #7ecff5; background: #08131b; border-left: 2px solid #38bdf8; font: 9px/1.8 Consolas; }.dfd-active-flow::after { position: absolute; inset: 0 auto 0 -30%; width: 30%; content: ""; background: linear-gradient(90deg,transparent,rgba(56,189,248,.2),#38bdf8,transparent); filter: blur(3px); animation: execution-trail 1.65s linear infinite; }.dfd-active-flow span { position: relative; z-index: 1; display: block; }
+.dfd-stores { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-top: 28px; }
+.dfd-store { padding: 11px; border-top: 3px solid #14b8a6; }.dfd-store strong { display: block; font-size: 11px; }.dfd-store span { display: block; margin-top: 6px; color: #707d89; font-size: 9px; line-height: 1.4; }.dfd-store.active { background: #0b201e; border-color: #2bd6c1; box-shadow: 0 0 18px rgba(20,184,166,.2); }
+.pfd-panel [data-pfd-panel] { background: radial-gradient(circle at 50% 15%,rgba(56,189,248,.05),transparent 36%),#080c11; }
+[data-pfd-panel] { height: calc(100% - 42px); overflow: auto; padding: 18px 22px; scroll-behavior: smooth; }
+.pfd-topology { position: relative; min-width: 1010px; margin: 0 auto; }
+.pfd-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.pfd-edge { color: #53606d; opacity: .42; }
+.pfd-edge path { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.pfd-edge.selected { color: #3b9bc9; opacity: .72; }.pfd-edge.exit { color: #9e7a37; }.pfd-edge.retry,.pfd-edge.loop { color: #9b72d0; }.pfd-edge.failure { color: #a94c4c; }
+.pfd-edge.complete { opacity: .95; }.pfd-edge.complete path { stroke-width: 2; filter: drop-shadow(0 0 4px currentColor); }
+.pfd-edge.active { color: var(--orange); opacity: 1; }.pfd-edge.active path { stroke-width: 3; stroke-dasharray: 7 9; filter: drop-shadow(0 0 5px currentColor); animation: pfd-flow-dash .7s linear infinite; }
+.pfd-svg marker path { fill: #788694; stroke: none; }.pfd-branch-label { fill: #7d8996; font: 9px Consolas,monospace; paint-order: stroke; stroke: #080c11; stroke-width: 4px; text-anchor: middle; }.pfd-edge.selected .pfd-branch-label { fill: #b4c3d0; }.pfd-edge.active .pfd-branch-label { fill: #ff8a49; }
+@keyframes pfd-flow-dash { to { stroke-dashoffset: -32; } }
+.pfd-step { position: absolute; z-index: 2; display: grid; grid-template-columns: 28px 1fr; gap: 1px 8px; width: 210px; height: 64px; padding: 10px 12px; color: #aab4bf; background: #111820; border: 1px solid #34404b; border-left: 3px solid #516477; box-shadow: 0 8px 18px rgba(0,0,0,.24); text-align: left; cursor: pointer; opacity: .68; }
+.pfd-step small { grid-row: 1/3; color: #5c7183; font: 8px Consolas; }.pfd-step strong { font-size: 11px; }.pfd-step code { color: #72808d; font-size: 8px; }
+.pfd-step.on-path { color: #e2e8ee; border-left-color: #38bdf8; opacity: 1; }.pfd-step.decision { display: grid; grid-template-columns: 1fr; align-content: center; justify-items: center; gap: 3px; padding: 8px 42px; border-color: #a57222; border-left-width: 1px; clip-path: polygon(50% 0,100% 50%,50% 100%,0 50%); }.pfd-step.decision small { display: none; }.pfd-step.decision strong,.pfd-step.decision code { display: block; width: 100%; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }.pfd-step.error,.pfd-step.retry { border-color: #9b4141; background: #1b1114; }.pfd-step.success { border-color: #278a76; }.pfd-step.active { color: #fff; border-color: var(--orange); background: #211710; box-shadow: 0 0 0 1px rgba(255,90,18,.25),0 0 22px rgba(255,90,18,.3); opacity: 1; }
+@keyframes execution-trail { to { left: 110%; } }
+@keyframes execution-pulse { to { transform: translateY(2px); opacity: .45; } }
+.execution-contract { display: grid; grid-template-columns: 160px 220px 1fr; gap: 8px 18px; align-items: center; min-height: 112px; padding: 17px 20px; background: #10151b; border: 1px solid #29323c; border-top: 0; }
+.execution-contract > span { color: var(--orange); font-size: 8px; letter-spacing: .13em; }.execution-contract > strong { font-size: 17px; }.execution-contract > code { grid-column: 1/3; color: #69c9f4; }.execution-contract > p { grid-column: 3; grid-row: 1/3; margin: 0; color: #9ca6b2; font-size: 11px; line-height: 1.6; }.execution-contract > div { grid-column: 1/-1; display: flex; gap: 10px; padding-top: 8px; border-top: 1px solid #29323c; }.execution-contract b { color: #667382; font-size: 9px; }.execution-contract em { color: #c2cad2; font-size: 10px; font-style: normal; margin-right: 14px; }
+
+@media (max-width: 1180px) {
+  :root { --sidebar: 190px; }
+  .poster-side { display: none; }
+  .arch-items.six { grid-template-columns: repeat(3,1fr); }
+  .pipeline-grid { grid-template-columns: repeat(3,1fr); }
+  .flow-row { grid-template-columns: repeat(3,1fr); }
+  .flow-row > i { display: none; }
+  .workpack-grid { grid-template-columns: repeat(2,1fr); }
+  .quality-levels { grid-template-columns: repeat(3,1fr); }
+  .quality-levels article { border-right: 1px solid #343a43; }
+  .flow-workbench { grid-template-columns: minmax(0,1fr) 280px; }
+  .execution-grid { grid-template-columns: 1fr; height: auto; }.execution-panel { min-height: 520px; }.execution-panel + .execution-panel { border-top: 1px solid #29323c; border-left: 0; }
+}
+
+@media (max-width: 820px) {
+  :root { --topbar: 58px; }
+  .topbar { padding: 0 15px; }
+  .top-status { display: none; }
+  .menu-toggle { display: block; }
+  .sidebar { transform: translateX(-105%); width: min(82vw,280px); transition: transform .22s ease; box-shadow: 15px 0 40px rgba(0,0,0,.4); }
+  .sidebar.open { transform: translateX(0); }
+  .content { margin-left: 0; }
+  .poster-view { padding: 48px 24px 0; }
+  .poster-copy h1 { font-size: 55px; }
+  .poster-lead { font-size: 17px; }
+  .capability-strip,.overview-apps { margin-left: -24px; margin-right: -24px; grid-template-columns: 1fr; }
+  .evolution-step { min-height: 96px; }
+  .evolution-step::after { display: none; }
+  .overview-apps article { min-height: auto; }
+  .page-head { min-height: 165px; padding: 38px 24px 26px; }
+  .page-head h1 { font-size: 42px; }
+  .head-note { display: none; }
+  .tabs { padding: 0 15px; }
+  .tab-button { min-width: 112px; padding: 16px 14px; }
+  .blueprint,.flow-canvas,.quality-canvas,.light-canvas { padding: 26px 18px 40px; }
+  .arch-layer { grid-template-columns: 1fr; }
+  .layer-label { border-right: 0; border-bottom: 1px solid #303844; flex-direction: row; gap: 10px; justify-content: flex-start; }
+  .arch-items,.arch-items.six,.arch-items.four { grid-template-columns: 1fr; }
+  .arch-bus { margin-left: 0; }
+  .storage-grid,.branch-grid,.agent-loop,.compensation-grid,.schema-grid,.govern-grid { grid-template-columns: 1fr; }
+  .rail-stage { grid-template-columns: 56px 1fr; }
+  .stage-no { font-size: 20px; }
+  .evolution-rail { padding: 22px 18px 10px; }
+  .shared-core { padding: 18px; }
+  .evolution-summary { grid-template-columns: 1fr; }
+  .flow-row,.pipeline-grid { grid-template-columns: 1fr; }
+  .artifact-line { grid-template-columns: repeat(2,1fr); gap: 10px; }
+  .message-map { grid-template-columns: 1fr; }
+  .message-map > i { transform: rotate(90deg); text-align: center; }
+  .workers { grid-template-columns: 1fr; }
+  .workpack-grid { grid-template-columns: 1fr; }
+  .stack-row { grid-template-columns: 1fr; gap: 8px; }
+  .benchmark-callout,.decision-line,.contract-rule,.metric-note { grid-template-columns: 1fr; gap: 10px; }
+  .api-list > div { grid-template-columns: 56px 1fr; }
+  .api-list p { grid-column: 1/-1; }
+  .quality-levels { grid-template-columns: 1fr; }
+  .metric-matrix > div { grid-template-columns: 90px 125px 1fr; }
+  .metric-matrix > div > * { padding: 12px 10px; }
+  .redline-bar { align-items: flex-start; flex-direction: column; }
+  .flow-explorer { padding: 22px 14px 28px; }
+  .flow-toolbar { align-items: stretch; flex-direction: column; }
+  .flow-actions { display: grid; grid-template-columns: repeat(3,1fr); }
+  .flow-legend { overflow-x: auto; gap: 14px; white-space: nowrap; }
+  .flow-workbench { grid-template-columns: 1fr; }
+  .flow-viewport { height: 500px; }
+  .flow-inspector { min-height: 360px; border-top: 1px solid #29313b; border-left: 0; }
+  .flow-payload { grid-template-columns: 1fr; }
+  .execution-explorer { padding: 22px 14px 28px; }.execution-toolbar { align-items: stretch; flex-direction: column; }.execution-controls { flex-wrap: wrap; }.execution-mobile-switch { display: grid; grid-template-columns: 1fr 1fr; margin-top: 10px; }.execution-mobile-switch button { padding: 10px; color: #8995a2; background: #10151b; border: 1px solid #29323c; }.execution-mobile-switch button.active { color: #fff; border-color: var(--orange); }.execution-grid { grid-template-columns: 1fr; }.execution-grid .execution-panel { display: none; }.execution-grid .execution-panel.mobile-active { display: block; }.dfd-processes { overflow-x: auto; }.dfd-process { min-width: 120px; }.dfd-stores { grid-template-columns: 1fr 1fr; }.execution-contract { grid-template-columns: 1fr; }.execution-contract > code,.execution-contract > p,.execution-contract > div { grid-column: 1; grid-row: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; transition: none !important; }
+  .graph-edge.active .edge-trail,.graph-node.active::after,.dfd-active-flow::after,.pfd-edge.active path { animation: none !important; }
+}
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><button class="menu-toggle" type="button" aria-label="打开导航">☰</button><span class="brand-mark mono">HF</span><span class="brand-name"><strong>ATE INTELLIGENCE</strong><small>KNOWLEDGE · DATA · AGENT</small></span></div>
+      <div class="top-status mono"><span>LOCAL DEPLOYMENT</span><i></i><span>30B CLASS</span><i></i><span>TRACE ENABLED</span></div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar" aria-label="主导航">
+        <div class="nav-index mono">TECHNICAL BLUEPRINT / 2026.09</div>
+        <nav class="nav">
+          <button class="nav-button" type="button" data-view-link="overview"><b>01</b><span>方案总览</span></button>
+          <button class="nav-button" type="button" data-view-link="architecture"><b>02</b><span>总体架构</span></button>
+          <button class="nav-button" type="button" data-view-link="evolution"><b>03</b><span>能力演进</span></button>
+          <button class="nav-button" type="button" data-view-link="runtime"><b>04</b><span>数据与消息流</span></button>
+          <button class="nav-button" type="button" data-view-link="execution"><b>05</b><span>执行流设计</span></button>
+          <button class="nav-button" type="button" data-view-link="roadmap"><b>06</b><span>实施路线</span></button>
+          <button class="nav-button" type="button" data-view-link="interfaces"><b>07</b><span>接口与存储</span></button>
+          <button class="nav-button" type="button" data-view-link="quality"><b>08</b><span>质量与治理</span></button>
+        </nav>
+        <div class="sidebar-foot"><span class="mono">SYSTEM BOUNDARY</span><strong>模型负责理解与组织<br>确定性系统负责事实</strong></div>
+      </aside>
+
+      <main class="content">
+        <section class="view poster-view" data-view="overview" data-title="方案总览">
+          <div class="poster-grid" aria-hidden="true"></div>
+          <div class="poster-copy">
+            <div class="eyebrow mono">INDUSTRIAL AI / TECHNICAL BLUEPRINT</div>
+            <h1>ATE 知识与<br><span>数据智能平台</span></h1>
+            <p class="poster-lead">把企业数据、技术文档和专家经验组织成可计算、可检索、可验证的工程能力。</p>
+            <div class="poster-rule"></div>
+            <div class="poster-principle"><strong>核心原则</strong><span>大模型负责理解、规划与表达；SQL、统计函数、业务规则和证据链负责可信结果。</span></div>
+          </div>
+          <div class="poster-side"><div class="poster-code mono">ATE / KNOWLEDGE / DATA / AGENT</div><div class="poster-metric"><strong>LOCAL</strong><span>模型与数据不出域</span></div><div class="poster-metric"><strong>≈30B</strong><span>主模型容量基线</span></div><div class="poster-metric"><strong>TRACE</strong><span>任务与证据可重放</span></div></div>
+          <div class="capability-strip" aria-label="能力演进路径">
+            <article class="evolution-step"><em>00</em><strong>文件数据提取</strong><span>解析、OCR、结构与案例</span></article>
+            <article class="evolution-step"><em>01</em><strong>RAG 1.0</strong><span>可信检索与证据引用</span></article>
+            <article class="evolution-step"><em>02</em><strong>RAG 2.0</strong><span>实体、案例与关系理解</span></article>
+            <article class="evolution-step"><em>03</em><strong>RAG 3.0</strong><span>Agentic 任务执行</span></article>
+          </div>
+          <div class="overview-apps"><article><span class="mono">APPLICATION 01</span><strong>电参数分析工作台</strong><p>批次、晶圆、Site 与参数统计，支持趋势、异常、图表和报告。</p></article><article><span class="mono">APPLICATION 02</span><strong>故障知识助手</strong><p>历史案例、根因、方案和验证结果可检索、可关联、可追溯。</p></article><article><span class="mono">APPLICATION 03</span><strong>报告智能评价</strong><p>定位关键字段、异常项和证据位置，按统一规则形成评价。</p></article></div>
+        </section>
+
+        <section class="view" data-view="architecture" data-title="总体架构" hidden>
+          <header class="page-head dark-head"><div><span class="section-no mono">02 / ARCHITECTURE</span><h1>总体技术架构</h1><p>稳定的平台内核统一治理，变化的计算、检索与模型服务保持可替换。</p></div><div class="head-note mono">CONTROLLED · TRACEABLE · REPLACEABLE</div></header>
+          <div class="tabs dark-tabs" role="tablist"><button class="tab-button" data-tab-link="layers" type="button">分层架构</button><button class="tab-button" data-tab-link="storage" type="button">组件与存储</button></div>
+          <article class="blueprint" data-tab-panel="layers">
+            <div class="arch-layer app-layer"><div class="layer-label"><b>01</b><span>业务应用</span></div><div class="arch-items"><div><strong>电参数分析</strong><small>查询 · 统计 · 异常 · 图表</small></div><div><strong>故障知识助手</strong><small>检索 · 关系 · 案例 · 引用</small></div><div><strong>报告评价</strong><small>规则 · 证据 · 风险 · 输出</small></div></div></div>
+            <div class="arch-bus mono">HTTPS / SSE · API GATEWAY · SSO / LDAP / RBAC · DATA DOMAIN</div>
+            <div class="arch-layer core-layer"><div class="layer-label"><b>02</b><span>平台内核</span></div><div class="arch-items six"><div><strong>Query Router</strong><small>数据 / 知识 / 混合</small></div><div><strong>Agent Orchestrator</strong><small>计划 / 工具 / 预算</small></div><div><strong>Task Center</strong><small>队列 / 状态 / 恢复</small></div><div><strong>Evidence Gate</strong><small>来源 / 覆盖 / 冲突</small></div><div><strong>Policy Engine</strong><small>白名单 / 查询限制</small></div><div><strong>Evaluation & Audit</strong><small>评测 / 反馈 / 审计</small></div></div></div>
+            <div class="arch-bus mono">VERSIONED TOOL CONTRACT · STRUCTURED OUTPUT · EVIDENCE PACKAGE</div>
+            <div class="arch-layer compute-layer"><div class="layer-label"><b>03</b><span>智能计算</span></div><div class="arch-items six"><div><strong>Data Query</strong><small>语义层 / 只读 SQL</small></div><div><strong>Statistics</strong><small>Cp/Cpk / 趋势 / 异常</small></div><div><strong>Document Intelligence</strong><small>OCR / 版面 / 表格</small></div><div><strong>Knowledge Retrieval</strong><small>BM25 / Dense / Rerank</small></div><div><strong>Case & Relation</strong><small>案例 / 实体 / 关系</small></div><div><strong>Report Evaluation</strong><small>规则 / 统计 / 模型判断</small></div></div></div>
+            <div class="arch-layer model-layer"><div class="layer-label"><b>04</b><span>本地模型</span></div><div class="arch-items four"><div><strong>LLM Gateway</strong><small>注册、路由、限流、版本</small></div><div><strong>约 30B 主模型</strong><small>vLLM / SGLang</small></div><div><strong>Embedding + Reranker</strong><small>召回与精排</small></div><div><strong>OCR / Layout / VLM</strong><small>文档与视觉理解</small></div></div></div>
+            <div class="arch-layer data-layer"><div class="layer-label"><b>05</b><span>数据底座</span></div><div class="arch-items six compact"><div><strong>PostgreSQL</strong><small>业务与元数据</small></div><div><strong>Parquet</strong><small>分析明细</small></div><div><strong>MinIO</strong><small>原文与产物</small></div><div><strong>OpenSearch</strong><small>BM25 / Filter</small></div><div><strong>Qdrant</strong><small>Dense 可选</small></div><div><strong>Redis</strong><small>缓存 / 队列 / 锁</small></div></div></div>
+            <div class="governance-bar"><strong>治理底座</strong><span>OpenTelemetry · Prometheus · Grafana · 审计 · 备份 · 离线制品</span></div>
+          </article>
+          <article class="light-canvas" data-tab-panel="storage" hidden>
+            <div class="section-title"><span class="mono">COMPONENT BOUNDARY</span><h2>组件解决不同问题，不重复承担职责</h2></div>
+            <div class="storage-grid"><article><b>01</b><strong>PostgreSQL</strong><p>用户、权限、任务、文档元数据、结构化案例、关系、规则和审计。</p><small>事务与关联查询的长期真值</small></article><article><b>02</b><strong>Parquet</strong><p>批次、晶圆、Die、参数和测试结果等大规模列式分析数据。</p><small>高压缩、快速列扫描、便于归档</small></article><article><b>03</b><strong>MinIO</strong><p>原始 PDF、Word、CSV、扫描件，以及解析、图表和报告产物。</p><small>对象存储与原始证据</small></article><article><b>04</b><strong>OpenSearch</strong><p>BM25、错误码与型号精确检索、Metadata 过滤和聚合。</p><small>关键词和强约束检索</small></article><article><b>05</b><strong>Qdrant</strong><p>Dense Vector 语义召回。若 OpenSearch Vector 达标，可不部署。</p><small>由真实 Benchmark 决定去留</small></article><article><b>06</b><strong>Redis</strong><p>缓存、任务队列、临时会话、并发控制和分布式锁。</p><small>不作为业务、知识和审计的唯一持久化来源</small></article></div>
+            <div class="decision-line"><strong>选型依据</strong><span>正确性、权限、可追溯性、真实任务性能和运维复杂度共同决定组件组合。</span></div>
+          </article>
+        </section>
+
+        <section class="view" data-view="evolution" data-title="能力演进" hidden>
+          <header class="page-head evolution-head"><div><span class="section-no mono">03 / CAPABILITY EVOLUTION</span><h1>文件数据提取到 Agentic RAG</h1><p>能力逐层叠加，数据与知识资产持续复用，不建设四套独立系统。</p></div></header>
+          <div class="evolution-rail"><article class="rail-stage stage-extract"><div class="stage-no mono">00</div><div class="stage-copy"><span class="mono">KNOWLEDGE PRODUCTION</span><h2>文件数据提取</h2><p>文件登记、哈希与权限 → OCR 和版面还原 → 章节与表格 → Chunk 与 Metadata → 案例、实体和关系候选。</p><div class="stage-output">输出：原文证据、检索片段、结构化案例</div></div></article><article class="rail-stage stage-rag1"><div class="stage-no mono">01</div><div class="stage-copy"><span class="mono">RELIABLE RETRIEVAL</span><h2>RAG 1.0</h2><p>Metadata Filter、BM25 和 Dense 并行召回，RRF 融合、Reranker 精排、文档级聚合，证据不足时拒答。</p><div class="stage-output">目标：正确证据稳定进入上下文</div></div></article><article class="rail-stage stage-rag2"><div class="stage-no mono">02</div><div class="stage-copy"><span class="mono">RELATION UNDERSTANDING</span><h2>RAG 2.0</h2><p>把设备、产品、参数异常、故障现象、根因、方案和验证结果沉淀成可查询关系，每条关系保留原文证据。</p><div class="stage-output">目标：支持跨文档、多案例和多跳查询</div></div></article><article class="rail-stage stage-rag3"><div class="stage-no mono">03</div><div class="stage-copy"><span class="mono">AGENTIC EXECUTION</span><h2>RAG 3.0</h2><p>Agent 动态拆解业务目标，调用数据、统计、日志、知识和报告工具，根据中间结果继续检索、推理和验证。</p><div class="stage-output">目标：完成有过程、有证据、有验证的任务</div></div></article></div>
+          <div class="shared-core"><strong>共享平台内核</strong><span>身份权限</span><span>任务中心</span><span>工具契约</span><span>证据链</span><span>质量评测</span><span>审计追踪</span></div>
+          <div class="evolution-summary"><b>1.0 提供可信知识入口</b><b>2.0 提供知识结构</b><b>3.0 组织数据、知识和工具完成任务</b></div>
+        </section>
+
+        <section class="view" data-view="runtime" data-title="动态流转观测台" hidden>
+          <header class="page-head dark-head"><div><span class="section-no mono">04 / RUNTIME FLOW EXPLORER</span><h1>模块级动态流转观测台</h1><p>沿一次真实任务观察前端、API、平台内核、功能服务、模型和存储之间的数据与代码调用。</p></div><div class="head-note mono">CLICK NODE / INSPECT CONTRACT<br>PLAY PATH / TRACE PAYLOAD</div></header>
+          <div class="tabs dark-tabs runtime-tabs" role="tablist"><button class="tab-button" data-tab-link="online" type="button">在线混合问答</button><button class="tab-button" data-tab-link="ate" type="button">ATE 数据入库</button><button class="tab-button" data-tab-link="documents" type="button">文件知识生产</button><button class="tab-button" data-tab-link="relations" type="button">关系建模</button><button class="tab-button" data-tab-link="agent" type="button">50 批次分析</button><button class="tab-button" data-tab-link="agent-state" type="button">Agent 状态机</button><button class="tab-button" data-tab-link="agent-context" type="button">Agent 协作与上下文</button><button class="tab-button" data-tab-link="messaging" type="button">异步任务补偿</button><button class="tab-button" data-tab-link="optimization" type="button">归因与优化</button></div>
+          <article class="flow-explorer" data-flow-explorer>
+            <div class="flow-toolbar">
+              <div><span class="mono flow-eyebrow" data-flow-eyebrow></span><h2 data-flow-title></h2><p data-flow-summary></p></div>
+              <div class="flow-actions" aria-label="流转播放控制"><button type="button" data-flow-action="play">▶ 播放</button><button type="button" data-flow-action="step">下一步</button><button type="button" data-flow-action="reset">重置</button></div>
+            </div>
+            <div class="flow-legend"><span class="sync">同步调用</span><span class="async">异步消息</span><span class="data">数据写入</span><span class="loop">验证回路</span><span class="gate">门禁决策</span><span class="failure">失败路径</span><b class="mono" data-flow-progress>STEP 01 / 01</b></div>
+            <div class="flow-workbench">
+              <div class="flow-viewport" data-flow-viewport><div class="flow-stage" data-flow-stage></div></div>
+              <aside class="flow-inspector" data-flow-inspector aria-live="polite"></aside>
+            </div>
+            <div class="flow-payload"><div><span class="mono">CURRENT TRANSFER</span><strong data-flow-transfer>等待开始</strong></div><code data-flow-payload>选择节点查看输入输出，或点击播放观察完整路径。</code></div>
+          </article>
+        </section>
+
+        <section class="view" data-view="execution" data-title="执行流设计" hidden>
+          <header class="page-head dark-head"><div><span class="section-no mono">05 / DFD + PFD EXECUTION DESIGN</span><h1>数据流与程序执行流</h1><p>左侧回答数据从哪里来、流向哪里；右侧回答 Worker 如何领取任务、校验、执行、发布与恢复。</p></div><div class="head-note mono">SELECT PROCESS / TRACE FUNCTION<br>PLAY NORMAL · RETRY · FAILED</div></header>
+          <div class="tabs dark-tabs execution-tabs" role="tablist"><button class="tab-button" data-tab-link="overview" type="button">完整任务链</button><button class="tab-button" data-tab-link="document" type="button">文档解析 Worker</button><button class="tab-button" data-tab-link="index" type="button">索引 Worker</button><button class="tab-button" data-tab-link="analysis" type="button">分析 Worker</button><button class="tab-button" data-tab-link="report" type="button">报告 Worker</button></div>
+          <article class="execution-explorer" data-execution-explorer>
+            <div class="execution-toolbar"><div><span class="mono execution-eyebrow">LINKED DFD / PFD</span><h2 data-execution-title>执行链路</h2><p data-execution-summary>选择场景后查看模块、函数、存储与异常补偿的完整协作。</p></div><div class="execution-controls"><label>路径 <select data-execution-path aria-label="选择执行路径"><option value="normal">正常完成</option><option value="retry">可重试异常</option><option value="failed">不可重试失败</option></select></label><button type="button" data-execution-action="play">▶ 播放</button><button type="button" data-execution-action="step">下一步</button><button type="button" data-execution-action="reset">重置</button></div></div>
+            <div class="execution-status"><span><i class="status-data"></i>数据流</span><span><i class="status-function"></i>函数步骤</span><span><i class="status-store"></i>读写存储</span><span><i class="status-error"></i>异常路径</span><b class="mono" data-execution-progress>STEP 01 / 01</b></div>
+            <div class="execution-mobile-switch" role="group" aria-label="执行图切换"><button class="active" type="button" data-execution-panel-switch="dfd">数据流图 DFD</button><button type="button" data-execution-panel-switch="pfd">程序流程图 PFD</button></div>
+            <div class="execution-grid"><section class="execution-panel dfd-panel mobile-active"><header><span class="mono">DFD / DATA FLOW</span><strong>数据流图</strong></header><div data-dfd-panel></div></section><section class="execution-panel pfd-panel"><header><span class="mono">PFD / PROGRAM FLOW</span><strong>程序流程图</strong></header><div data-pfd-panel></div></section></div>
+            <aside class="execution-contract" data-execution-contract aria-live="polite"><span class="mono">STEP CONTRACT</span><strong>等待选择</strong><p>点击 DFD 模块或 PFD 步骤查看输入、输出、读写对象和失败处理。</p></aside>
+          </article>
+        </section>
+
+        <section class="view" data-view="roadmap" data-title="实施路线" hidden>
+          <header class="page-head light-head"><div><span class="section-no mono">06 / IMPLEMENTATION</span><h1>研发工作包与技术落地</h1><p>按依赖与验证出口管理进度，数据定义和评测集先于大规模功能开发。</p></div></header>
+          <div class="tabs light-tabs" role="tablist"><button class="tab-button" data-tab-link="workpacks" type="button">工作包与依赖</button><button class="tab-button" data-tab-link="stack" type="button">技术栈</button></div>
+          <article class="light-canvas" data-tab-panel="workpacks"><div class="workpack-grid"><article><span>WP0 / W1–W2</span><strong>数据与任务基线</strong><p>Profiling、术语、问题集、Golden Set、权限域。</p><small>出口：字段与任务定义通过评审</small></article><article><span>WP1 / W1–W3</span><strong>平台骨架</strong><p>身份、API、任务、LLM Gateway、Trace 与证据 Schema。</p><small>出口：空链路可运行、状态可追踪</small></article><article><span>WP2 / W2–W5</span><strong>文件提取与 RAG 1.0</strong><p>OCR、Chunk、Metadata、混合召回、精排与引用。</p><small>出口：检索和引用达到校准门槛</small></article><article><span>WP3 / W2–W6</span><strong>数据计算链</strong><p>Measurement Schema、Parquet、语义层、SQL、统计与图表。</p><small>出口：对账通过、关键统计全正确</small></article><article><span>WP4 / W4–W7</span><strong>RAG 2.0 关系能力</strong><p>案例 Schema、实体规范化、关系抽取和专家确认。</p><small>出口：实体、关系与来源追溯通过</small></article><article><span>WP5 / W5–W9</span><strong>RAG 3.0 任务执行</strong><p>状态机、工具契约、多轮执行、验证和失败恢复。</p><small>出口：固定任务集成功率达到门槛</small></article><article><span>WP6 / W6–W9</span><strong>应用集成</strong><p>电参数工作台、知识助手、报告评价和反馈。</p><small>出口：三类业务任务端到端可用</small></article><article><span>WP7 / W8–W10</span><strong>综合验收</strong><p>回归、盲评、压测、安全、故障演练和回滚。</p><small>出口：质量门禁与发布红线通过</small></article></div><div class="dependency-track"><span>WP0 基线</span><i>→</i><span>WP1 平台</span><i>→</i><span>WP2 / WP3</span><i>→</i><span>WP4</span><i>→</i><span>WP5</span><i>→</i><span>WP6</span><i>→</i><span>WP7</span></div></article>
+          <article class="light-canvas" data-tab-panel="stack" hidden><div class="stack-table"><div class="stack-row"><b>交互与接口</b><strong>React · TypeScript · Ant Design Pro · ECharts · FastAPI · Pydantic</strong><span>企业控制台、统计图和强类型接口</span></div><div class="stack-row"><b>平台内核</b><strong>显式状态机 · LangGraph 候选 · Celery/Dramatiq · Redis</strong><span>受控编排、长任务、重试和状态</span></div><div class="stack-row"><b>数据计算</b><strong>SQLAlchemy · Polars/Pandas · NumPy · SciPy</strong><span>只读查询和可复算统计函数</span></div><div class="stack-row"><b>文档与检索</b><strong>Docling · 中文 OCR · OpenSearch · Qdrant 可选</strong><span>结构还原、混合召回和语义检索</span></div><div class="stack-row"><b>本地模型</b><strong>LLM Gateway · vLLM/SGLang · JSON Schema</strong><span>统一模型协议和结构化输出</span></div><div class="stack-row"><b>数据底座</b><strong>PostgreSQL · Parquet · MinIO · Redis</strong><span>事务、分析、对象与运行时状态</span></div><div class="stack-row"><b>运行治理</b><strong>Docker Compose · OpenTelemetry · Prometheus · Grafana</strong><span>离线部署、追踪、指标和可视化</span></div></div><div class="benchmark-callout"><strong>组件不预先锁死</strong><p>先定义接口、数据集和指标，再用真实任务比较 Recall@K、nDCG、P95/P99、过滤能力、质量收益和运维成本。</p></div></article>
+        </section>
+
+        <section class="view" data-view="interfaces" data-title="接口与存储" hidden>
+          <header class="page-head light-head"><div><span class="section-no mono">07 / CONTRACTS</span><h1>接口、Schema 与证据包</h1><p>所有接口版本化，模型和工具只能通过结构化契约交换参数与结果。</p></div></header>
+          <div class="tabs light-tabs" role="tablist"><button class="tab-button" data-tab-link="apis" type="button">应用与工具接口</button><button class="tab-button" data-tab-link="schemas" type="button">核心 Schema</button></div>
+          <article class="light-canvas" data-tab-panel="apis"><div class="api-list"><div><span>POST</span><code>/api/v1/query</code><p>知识问答、轻量数据查询和混合问题；支持 SSE。</p></div><div><span>POST</span><code>/api/v1/tasks</code><p>创建文档解析、批量分析或报告评价任务。</p></div><div><span>GET</span><code>/api/v1/tasks/{task_id}</code><p>读取任务状态、步骤、进度、错误码和结果引用。</p></div><div><span>POST</span><code>/api/v1/documents</code><p>登记文档、版本、哈希、权限与处理任务。</p></div><div><span>GET</span><code>/api/v1/evidence/{answer_id}</code><p>获取数据证据、文档证据和校验状态。</p></div><div><span>POST</span><code>/api/v1/feedback</code><p>提交用户反馈、专家修订和失败原因。</p></div></div><div class="contract-rule"><strong>服务端授权优先</strong><span>客户端传入的项目、产品或角色字段不能替代服务端身份认证和权限判定。</span></div></article>
+          <article class="light-canvas" data-tab-panel="schemas" hidden><div class="schema-grid"><article><span class="mono">QUERY REQUEST</span><pre>{
+  "schema_version": "1.0",
+  "query": "分析最近50批次良率下降原因",
+  "requested_mode": "auto",
+  "include_evidence": true
+}</pre></article><article><span class="mono">TOOL RESULT</span><pre>{
+  "tool_call_id": "CALL-001",
+  "status": "succeeded",
+  "data_version": "2026-09-20",
+  "sample_count": 493251,
+  "evidence_ids": ["EV-DATA-001"]
+}</pre></article><article><span class="mono">EVIDENCE PACKAGE</span><pre>{
+  "conclusion": "Site 3 的 VTH 持续上移",
+  "query_ref": "QUERY-012",
+  "function": "trend_change_v1.3",
+  "document_id": "DOC-103",
+  "page": 27
+}</pre></article><article><span class="mono">ERROR</span><pre>{
+  "code": "EVIDENCE_INSUFFICIENT",
+  "retryable": false,
+  "missing_conditions": ["校准记录"],
+  "trace_id": "TRACE-003"
+}</pre></article></div><div class="error-domains"><span>AUTH_*</span><span>DATA_*</span><span>DOCUMENT_*</span><span>RETRIEVAL_*</span><span>MODEL_*</span><span>TOOL_*</span><span>EVIDENCE_*</span><span>TASK_*</span></div></article>
+        </section>
+
+        <section class="view" data-view="quality" data-title="质量与治理" hidden>
+          <header class="page-head dark-head"><div><span class="section-no mono">08 / QUALITY & GOVERNANCE</span><h1>科学评测与持续优化</h1><p>拆开测量文件提取、检索、证据、关系、Agent 和系统性能，才能定位误差来源。</p></div></header>
+          <div class="tabs dark-tabs" role="tablist"><button class="tab-button" data-tab-link="framework" type="button">评测框架</button><button class="tab-button" data-tab-link="metrics" type="button">指标定义</button><button class="tab-button" data-tab-link="governance" type="button">安全与治理</button></div>
+          <article class="quality-canvas" data-tab-panel="framework"><div class="quality-levels"><article><b>01</b><strong>输入质量</strong><p>数据完整性、文档解析覆盖、样本代表性。</p></article><article><b>02</b><strong>能力质量</strong><p>SQL、统计、抽取、检索、关系、工具与引用。</p></article><article><b>03</b><strong>端到端任务</strong><p>任务成功、证据充分、专家修改率和拒答。</p></article><article><b>04</b><strong>系统质量</strong><p>P50、P95、P99、吞吐、队列和恢复时间。</p></article><article><b>05</b><strong>治理质量</strong><p>权限、暴露、审计、版本和回滚。</p></article></div><div class="evaluation-loop"><span>Golden Set</span><i>→</i><span>离线回归</span><i>→</i><span>专家盲评</span><i>→</i><span>受控发布</span><i>→</i><span>线上反馈</span><i>↺</i></div><div class="redline-bar"><strong>发布红线</strong><span>确定性数值错误</span><span>越权证据</span><span>关键结论无证据</span><span>高危漏洞</span></div></article>
+          <article class="light-canvas" data-tab-panel="metrics" hidden><div class="metric-matrix"><div class="metric-head"><b>层级</b><b>指标</b><b>含义</b></div><div><strong>RAG 1.0</strong><span>Recall@K</span><p>全部相关证据中，有多少进入前 K 条。</p></div><div><strong>RAG 1.0</strong><span>MRR</span><p>第一个正确结果出现得有多靠前。</p></div><div><strong>RAG 1.0</strong><span>nDCG</span><p>高价值结果是否按照相关程度合理排序。</p></div><div><strong>过滤</strong><span>Metadata F1</span><p>设备、产品、错误码、版本和时间条件是否正确提取与执行。</p></div><div><strong>RAG 2.0</strong><span>实体 / 关系准确率</span><p>结构化实体和知识关系是否正确且有证据。</p></div><div><strong>RAG 3.0</strong><span>任务成功率</span><p>是否正确规划、调用工具、验证证据并完成任务。</p></div><div><strong>系统性能</strong><span>P95 / P99</span><p>95% / 99% 请求在该时间内完成，用于观察尾部慢请求。</p></div><div><strong>答案</strong><span>忠实度 / 完整性</span><p>结论是否由证据支持，并覆盖用户问题的关键点。</p></div></div><div class="metric-note"><strong>总体均值不能掩盖尾部风险</strong><span>同时展示任务、数据、难度、产品与最差分层。</span></div></article>
+          <article class="quality-canvas" data-tab-panel="governance" hidden><div class="govern-grid"><article><b>01</b><strong>权限下推</strong><p>SQL、OpenSearch、向量检索和对象读取都执行服务端授权。</p></article><article><b>02</b><strong>工具边界</strong><p>白名单、输入 Schema、只读连接、查询预算、超时和结果大小限制。</p></article><article><b>03</b><strong>版本治理</strong><p>数据、文档、索引、规则、模型、Prompt 和工具版本进入 Trace。</p></article><article><b>04</b><strong>安全部署</strong><p>模型、Embedding、Reranker、OCR、数据与索引全部在企业内网。</p></article></div><div class="trace-band"><strong>TRACE</strong><span>用户与权限域</span><span>输入与意图</span><span>计划与状态</span><span>工具参数</span><span>数据与索引版本</span><span>证据与答案</span></div><div class="closing-statement">可信答案来自<br><span>清晰的工程边界与持续验证闭环</span></div></article>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script>(() => {
+'use strict';
+const __flowTypes = (() => {
+
+const createNode = (id, lane, label, functionName, responsibility, input, output, failure) => ({
+  id, lane, label, fn: functionName, responsibility, input, output, failure,
+});
+
+const createGateNode = (...args) => ({ ...createNode(...args), visual: 'gate' });
+const createExceptionNode = (...args) => ({ ...createNode(...args), visual: 'exception' });
+
+const createEdge = (from, to, kind, payload, label = '', id = `${from}--${to}`) => ({
+  id, from, to, kind, payload, label,
+});
+
+return { createNode, createGateNode, createExceptionNode, createEdge };
+})();
+const __runtimeFlows = (() => {
+const { createNode: node, createGateNode: gateNode, createExceptionNode: exceptionNode, createEdge: edge } = __flowTypes;
+const FLOW_LANES = Object.freeze([
+  { id: 'frontend', label: '前端交互', code: 'FE' },
+  { id: 'access', label: 'API 与权限', code: 'API' },
+  { id: 'kernel', label: '平台内核', code: 'CORE' },
+  { id: 'service', label: '功能服务', code: 'SVC' },
+  { id: 'model', label: '模型与检索', code: 'AI' },
+  { id: 'storage', label: '存储与治理', code: 'DATA' },
+]);
+
+const FLOW_SCENARIOS = Object.freeze({
+  online: {
+    id: 'online',
+    eyebrow: 'ONLINE HYBRID REQUEST',
+    title: '在线混合问答执行链',
+    summary: '一次问题跨越权限、路由、确定性计算、知识检索、证据校验和答案生成。',
+    nodes: [
+      node('submit-query', 'frontend', 'Web Console', 'submitQuery()', '采集问题、筛选条件与会话上下文，创建流式请求。', 'UserPrompt + Filters', 'QueryEnvelope', '网络中断时保留 request_id 并允许恢复。'),
+      node('authorize-scope', 'access', 'API Gateway / BFF', 'authorizeScope()', '校验身份、项目权限、数据域和请求预算。', 'QueryEnvelope + Identity', 'AuthorizedQuery', '越权立即拒绝，并写入安全审计。'),
+      node('route-intent', 'kernel', 'Query Router', 'routeIntent()', '识别数据、知识、混合或报告评价意图，选择受控执行入口。', 'AuthorizedQuery', 'RouteDecision', '低置信度时转为澄清问题，不直接触发工具。'),
+      node('build-plan', 'kernel', 'Agent Orchestrator', 'buildPlan()', '生成工具白名单内的步骤、依赖关系与执行预算。', 'RouteDecision', 'ExecutionPlan', '计划超预算时缩减范围或请求用户确认。'),
+      node('query-facts', 'service', 'Data Query + Statistics', 'executeDataQuery()', '通过语义层生成只读查询并执行统计函数，形成可复核数值。', 'QueryStep', 'DataEvidence[]', '查询超时则缩小时间范围并返回缺失数据说明。'),
+      node('retrieve-knowledge', 'model', 'Knowledge Retrieval', 'hybridRetrieve()', '执行 Metadata、BM25、Dense、RRF 与 Reranker，召回定义和案例。', 'KnowledgeStep', 'DocumentEvidence[]', '证据阈值不足时禁止进入确定性生成。'),
+      node('build-evidence', 'kernel', 'Evidence Builder', 'buildEvidence()', '合并数值、SQL、文档页码、版本和权限标签。', 'DataEvidence + DocumentEvidence', 'EvidencePackage', '发现版本冲突时标记冲突并触发补充检索。'),
+      node('verify-evidence', 'kernel', 'Evidence Gate', 'verifyEvidence()', '校验证据覆盖率、一致性、权限和时效性。', 'EvidencePackage', 'VerifiedEvidence', '校验失败时返回拒答或带条件结论。'),
+      node('compose-answer', 'model', 'Local LLM Gateway', 'composeAnswer()', '约 30B 本地模型基于已验证证据生成结构化答案与引用。', 'VerifiedEvidence + AnswerSchema', 'GroundedAnswer', '结构化输出失败则修复一次，仍失败则降级为模板答案。'),
+      node('render-answer', 'frontend', 'Answer Workspace', 'renderEvidence()', '逐段展示结论、图表、引用、证据状态与反馈入口。', 'GroundedAnswer', 'VisibleAnswer', 'SSE 中断后按 request_id 拉取最终结果。'),
+      node('persist-trace', 'storage', 'Audit & Observability', 'persistTrace()', '保存调用链、模型版本、数据版本、证据和反馈。', 'ExecutionTrace', 'AuditRecord', '审计写入失败时不影响答案，但进入补偿队列。'),
+    ],
+    edges: [
+      edge('submit-query', 'authorize-scope', 'sync', 'QueryEnvelope', 'HTTPS'),
+      edge('authorize-scope', 'route-intent', 'sync', 'AuthorizedQuery'),
+      edge('route-intent', 'build-plan', 'sync', 'RouteDecision'),
+      edge('build-plan', 'query-facts', 'sync', 'QueryStep', '数据分支'),
+      edge('query-facts', 'retrieve-knowledge', 'data', 'DataEvidence[]', '事实约束检索'),
+      edge('retrieve-knowledge', 'build-evidence', 'data', 'DocumentEvidence[]'),
+      edge('build-evidence', 'verify-evidence', 'sync', 'EvidencePackage'),
+      edge('verify-evidence', 'compose-answer', 'sync', 'VerifiedEvidence'),
+      edge('compose-answer', 'render-answer', 'sync', 'GroundedAnswer', 'SSE'),
+      edge('render-answer', 'persist-trace', 'async', 'ExecutionTrace + Feedback'),
+    ],
+  },
+  ate: {
+    id: 'ate', eyebrow: 'ATE DATA PRODUCT', title: 'ATE 测试数据入库与发布',
+    summary: '原始测试文件经登记、质量门禁、标准化和语义发布，成为可查询的数据产品。',
+    nodes: [
+      node('upload-ate', 'frontend', 'Data Console', 'registerDataset()', '登记来源、批次、产品、设备和文件。', 'CSV / Excel / DB Manifest', 'UploadTicket', '缺少批次或产品信息时阻止提交。'),
+      node('receive-file', 'access', 'Ingestion API', 'receiveDataset()', '校验文件类型、大小、哈希与数据域。', 'UploadTicket + File', 'DatasetJob', '重复哈希返回既有版本，不重复处理。'),
+      node('store-raw', 'storage', 'MinIO Raw Zone', 'storeImmutable()', '不可变保存原文件与来源清单。', 'DatasetJob', 'RawObjectRef', '写入失败则任务保持 RECEIVED 并重试。'),
+      node('profile-data', 'service', 'Data Profiler', 'profileDataset()', '检测列类型、缺失、重复、范围、单位和主键候选。', 'RawObjectRef', 'DataProfile', '结构漂移进入人工映射队列。'),
+      gateNode('quality-gate', 'kernel', 'Data Quality Gate', 'evaluateQuality()', '根据规则计算质量评分并决定通过、隔离或退回。', 'DataProfile + DQRules', 'QualityDecision', '红线规则失败则隔离，不发布下游。'),
+      node('normalize-schema', 'service', 'Schema Mapper', 'normalizeATE()', '统一 Lot、Wafer、Die、Parameter、Result 和单位。', 'ApprovedDataset', 'CanonicalATE', '未知字段保留原值并生成映射告警。'),
+      node('write-parquet', 'storage', 'Parquet Analytics', 'writePartitioned()', '按产品、日期和批次写入列式分析明细。', 'CanonicalATE', 'ParquetVersion', '分区写入采用临时路径，校验后原子发布。'),
+      node('write-metadata', 'storage', 'PostgreSQL Catalog', 'registerVersion()', '登记数据集版本、血缘、质量报告和分区位置。', 'ParquetVersion + DataProfile', 'DatasetVersion', '元数据事务失败则回滚发布标记。'),
+      node('publish-semantic', 'service', 'Semantic Layer', 'publishMetrics()', '发布指标、维度、参数别名和只读查询模板。', 'DatasetVersion', 'DataProduct', '口径冲突时保持草稿并进入评审。'),
+      node('show-product', 'frontend', 'Data Catalog', 'renderDataProduct()', '展示质量、血缘、版本、指标和可用范围。', 'DataProduct', 'PublishedDataset', '版本被撤回时立即隐藏查询入口。'),
+    ],
+    edges: [
+      edge('upload-ate', 'receive-file', 'sync', 'UploadTicket + File'),
+      edge('receive-file', 'store-raw', 'data', 'RawBytes + Manifest'),
+      edge('store-raw', 'profile-data', 'async', 'dataset.received'),
+      edge('profile-data', 'quality-gate', 'sync', 'DataProfile'),
+      edge('quality-gate', 'normalize-schema', 'async', 'dataset.approved'),
+      edge('normalize-schema', 'write-parquet', 'data', 'CanonicalATE'),
+      edge('write-parquet', 'write-metadata', 'data', 'ParquetVersion'),
+      edge('write-metadata', 'publish-semantic', 'async', 'dataset.versioned'),
+      edge('publish-semantic', 'show-product', 'sync', 'DataProduct'),
+    ],
+  },
+  documents: {
+    id: 'documents', eyebrow: 'KNOWLEDGE PRODUCTION', title: '文件数据提取与知识生产',
+    summary: '原始文件经过安全接入和结构还原后，同时生成检索资产与案例关系资产，最终通过同一发布门禁。',
+    nodes: [
+      node('register-file', 'frontend', 'File Registry', 'registerFile()', '登记 PDF、Word、Excel 或扫描件的哈希、来源、版本与权限。', 'File + SourceMetadata', 'FileManifest', '哈希重复时提示复用或创建新版本。'),
+      node('secure-preprocess', 'access', 'Security Preprocessor', 'preprocessSecurely()', '执行类型检查、病毒扫描、解密策略和权限标签校验。', 'FileManifest', 'AcceptedFile', '风险文件进入隔离区，禁止继续解析。'),
+      node('archive-source', 'storage', 'MinIO Raw Zone', 'storeImmutable()', '不可变保存原始文件及来源清单。', 'AcceptedFile', 'SourceObjectRef', '写入失败时保持登记状态并进行补偿重试。'),
+      node('parse-document', 'service', 'OCR & Parser', 'parseDocument()', '执行 OCR、电子文本提取、版面检测和表格识别。', 'SourceObjectRef', 'ParsedPages', '低置信度页面进入人工复核清单。'),
+      node('restore-structure', 'service', 'Structure Restorer', 'restoreStructure()', '还原标题、章节、表格、阅读顺序和页码锚点。', 'ParsedPages', 'DocumentStructure', '页码或阅读顺序不可恢复时禁止发布引用。'),
+      node('build-chunks', 'service', 'Semantic Chunker', 'buildChunks()', '依据章节、表格和语义边界生成 Chunk 与 Metadata。', 'DocumentStructure', 'KnowledgeChunks[]', '每个 Chunk 必须保留原文、页码和版本引用。'),
+      node('extract-case', 'model', 'Case & Entity Extraction', 'extractCasesAndEntities()', '抽取设备、产品、错误码、现象、根因、措施和验证结果。', 'DocumentStructure', 'CaseDrafts + EntityDrafts', '低置信度字段保持空值，不允许模型补猜。'),
+      node('normalize-relations', 'service', 'Entity Normalizer', 'normalizeRelations()', '完成实体规范化、别名消歧和关系候选生成。', 'CaseDrafts + EntityDrafts', 'NormalizedKnowledge', '无法消歧的实体进入专家确认队列。'),
+      node('index-knowledge', 'storage', 'BM25 + Vector Index', 'buildHybridIndex()', '构建关键词、Metadata、向量索引和版本别名。', 'KnowledgeChunks[]', 'IndexCandidate', '候选索引验证前不切换线上别名。'),
+      node('persist-cases', 'storage', 'PostgreSQL Knowledge', 'persistCases()', '保存案例、实体、关系、来源证据和版本。', 'NormalizedKnowledge', 'KnowledgeVersion', '关系没有来源证据时只保存为候选。'),
+      node('expert-review', 'frontend', 'Expert Review Queue', 'reviewKnowledge()', '专家确认歧义实体、关系价值、案例合并和证据页码。', 'NormalizedKnowledge', 'ReviewDecision', '驳回项携带原因回到规则与样本优化池。'),
+      gateNode('release-gate', 'kernel', 'Quality & Release Gate', 'publishKnowledge()', '验证索引、案例、关系、原文引用和权限标签后原子发布。', 'IndexCandidate + KnowledgeVersion + ReviewDecision', 'KnowledgeRelease', '任何引用不可追溯或门禁不达标都阻止发布。'),
+    ],
+    edges: [
+      edge('register-file', 'secure-preprocess', 'sync', 'FileManifest'),
+      edge('secure-preprocess', 'archive-source', 'data', 'AcceptedFile'),
+      edge('archive-source', 'parse-document', 'async', 'document.archived'),
+      edge('parse-document', 'restore-structure', 'sync', 'ParsedPages'),
+      edge('restore-structure', 'build-chunks', 'data', 'DocumentStructure', '检索资产分支'),
+      edge('restore-structure', 'extract-case', 'sync', 'DocumentStructure', '案例关系分支'),
+      edge('build-chunks', 'index-knowledge', 'data', 'KnowledgeChunks[]'),
+      edge('extract-case', 'normalize-relations', 'sync', 'CaseDrafts + EntityDrafts'),
+      edge('normalize-relations', 'persist-cases', 'data', 'NormalizedKnowledge'),
+      edge('normalize-relations', 'expert-review', 'async', 'AmbiguousKnowledge'),
+      edge('index-knowledge', 'release-gate', 'async', 'IndexCandidate'),
+      edge('persist-cases', 'release-gate', 'data', 'KnowledgeVersion'),
+      edge('expert-review', 'release-gate', 'sync', 'ReviewDecision'),
+    ],
+  },
+  relations: {
+    id: 'relations', eyebrow: 'RAG 2.0 RELATION MODELING', title: '实体、案例与关系落地决策',
+    summary: '关系不是一律进入图数据库，而是根据查询价值、过滤价值和多跳收益选择最合适的承载方式。',
+    nodes: [
+      node('relation-input', 'storage', 'Documents & Chunks', 'loadKnowledgeAssets()', '加载带来源锚点的文档块、表格和案例草稿。', 'KnowledgeRelease', 'EvidenceBoundAssets', '缺少来源锚点的内容不得进入关系抽取。'),
+      node('extract-entities', 'model', 'Entity Extraction', 'extractEntities()', '抽取设备、产品、参数、错误码、现象、措施等实体。', 'EvidenceBoundAssets', 'EntityCandidates', '不确定实体保留候选与置信度。'),
+      node('extract-cases', 'model', 'Case Extraction', 'extractCases()', '抽取故障对象、症状、根因、方案和验证结果。', 'EvidenceBoundAssets', 'CaseCandidates', '案例关键字段不完整时进入补录队列。'),
+      node('resolve-entities', 'service', 'Normalization & Resolution', 'resolveEntities()', '统一别名、编码、层级和重复实体。', 'EntityCandidates + CaseCandidates', 'CanonicalEntities', '无法自动消歧时请求专家确认。'),
+      node('build-relations', 'service', 'Relation Candidate Builder', 'buildRelationCandidates()', '生成实体关系、案例关系及方向、时间和适用条件。', 'CanonicalEntities', 'RelationCandidates', '禁止生成没有业务语义或来源证据的边。'),
+      node('bind-relation-evidence', 'kernel', 'Evidence Binder', 'bindRelationEvidence()', '绑定 document_id、chunk_id、页码、版本和抽取规则。', 'RelationCandidates', 'EvidenceBoundRelations', '证据失效时关系自动降级为不可发布。'),
+      gateNode('relation-gate', 'kernel', 'Relation Value Gate', 'routeRelationStorage()', '按固定字段、搜索过滤和多跳遍历收益决定存储去向。', 'EvidenceBoundRelations + QuerySet', 'StorageDecision', '没有明确消费场景的关系不进入生产库。'),
+      node('relation-table', 'storage', 'PostgreSQL Relation Table', 'persistStructuredRelation()', '承载固定字段、常规关联、版本和审核状态。', 'StructuredRelations', 'RelationRows', '唯一约束和版本事务避免重复关系。'),
+      node('metadata-store', 'storage', 'OpenSearch Metadata', 'indexRelationMetadata()', '承载设备、产品、错误码等过滤与搜索关联。', 'SearchRelations', 'MetadataIndexVersion', '过滤结果必须继承权限标签。'),
+      node('graph-store', 'storage', 'Graph / GraphRAG', 'publishGraphPath()', '仅承载对多跳遍历有明确收益的高价值关系。', 'GraphRelations', 'GraphVersion', '多跳质量或运维收益不足时不启用。'),
+      node('relation-query', 'service', 'Relation Query Service', 'queryRelations()', '统一封装表关系、搜索 Metadata 和可选图路径。', 'RelationQuery', 'RelationEvidence[]', '调用方不感知底层存储实现。'),
+    ],
+    edges: [
+      edge('relation-input', 'extract-entities', 'sync', 'EvidenceBoundAssets'),
+      edge('relation-input', 'extract-cases', 'sync', 'EvidenceBoundAssets'),
+      edge('extract-entities', 'resolve-entities', 'sync', 'EntityCandidates'),
+      edge('extract-cases', 'resolve-entities', 'sync', 'CaseCandidates'),
+      edge('resolve-entities', 'build-relations', 'sync', 'CanonicalEntities'),
+      edge('build-relations', 'bind-relation-evidence', 'data', 'RelationCandidates'),
+      edge('bind-relation-evidence', 'relation-gate', 'sync', 'EvidenceBoundRelations'),
+      edge('relation-gate', 'relation-table', 'data', 'StructuredRelations', '固定字段 / 常规关联'),
+      edge('relation-gate', 'metadata-store', 'data', 'SearchRelations', '过滤 / 搜索关联'),
+      edge('relation-gate', 'graph-store', 'data', 'GraphRelations', '多跳收益明确'),
+      edge('relation-table', 'relation-query', 'sync', 'RelationRows'),
+      edge('metadata-store', 'relation-query', 'sync', 'MetadataMatches'),
+      edge('graph-store', 'relation-query', 'sync', 'GraphPaths'),
+    ],
+  },
+  agent: {
+    id: 'agent', eyebrow: 'AGENTIC RAG LOOP', title: '最近 50 批次良率下降分析',
+    summary: 'Agent 拆解任务，调用确定性工具和知识检索，形成假设后交叉验证并输出可追溯建议。',
+    nodes: [
+      node('ask-analysis', 'frontend', 'Analysis Workspace', 'submitAnalysisTask()', '提交分析问题、产品、批次范围与约束。', 'AnalysisPrompt', 'AnalysisTask', '范围缺失时先澄清产品和时间窗口。'),
+      node('accept-task', 'access', 'Analysis API', 'createTask()', '授权数据域并创建可恢复的长任务。', 'AnalysisTask + Identity', 'TaskContext', '无批次读取权限时拒绝执行。'),
+      node('decompose-task', 'kernel', 'Agent Orchestrator', 'decomposeTask()', '拆成趋势、参数、设备、版本、案例与验证子任务。', 'TaskContext', 'TaskGraph', '子任务超过预算时按信息增益排序裁剪。'),
+      node('load-lots', 'service', 'Data Query', 'loadRecentLots()', '读取最近 50 批次良率、参数和上下文维度。', 'LotQuery', 'LotDataset', '样本不足时明确降低结论置信度。'),
+      node('detect-change', 'service', 'Statistics', 'detectChangePoints()', '计算趋势、变点、异常参数和效应量。', 'LotDataset', 'StatisticalFindings', '不以相关性直接替代因果结论。'),
+      node('compare-context', 'service', 'Context Analyzer', 'compareEquipmentVersion()', '比较设备、程序、材料和测试版本变化。', 'StatisticalFindings + Metadata', 'ContextFindings', '维度缺失时生成数据补采建议。'),
+      node('retrieve-cases', 'model', 'Knowledge Retrieval', 'retrieveSimilarCases()', '以异常参数和上下文检索历史故障案例。', 'ContextFindings', 'SimilarCases[]', '低相似度案例仅作为线索，不作为证据。'),
+      node('form-hypothesis', 'model', 'Local LLM', 'formHypotheses()', '组合统计事实、上下文变化和历史案例形成原因假设。', 'Findings + SimilarCases', 'Hypotheses[]', '每条假设必须绑定可验证预测。'),
+      node('verify-hypothesis', 'kernel', 'Verification Loop', 'verifyHypotheses()', '为假设追加查询、反例检查和证据覆盖计算。', 'Hypotheses[]', 'VerifiedHypotheses', '证据不足则回到数据查询或案例检索。'),
+      node('generate-report', 'service', 'Report Evaluation', 'generateAnalysisReport()', '输出结论、证据、置信度、优化动作和验证计划。', 'VerifiedHypotheses', 'EvidenceReport', '未通过证据门禁的内容移入“待验证假设”。'),
+      node('present-report', 'frontend', 'Analysis Workspace', 'renderAnalysisReport()', '展示趋势图、原因排序、引用、建议和反馈。', 'EvidenceReport', 'DecisionSupport', '用户修订沉淀为评测样本。'),
+      node('save-trace', 'storage', 'Evaluation & Audit', 'saveRun()', '保存任务图、工具输入输出、版本和专家反馈。', 'AgentRunTrace', 'EvaluationSample', '敏感中间数据按项目域隔离。'),
+    ],
+    edges: [
+      edge('ask-analysis', 'accept-task', 'sync', 'AnalysisTask'),
+      edge('accept-task', 'decompose-task', 'async', 'analysis.created'),
+      edge('decompose-task', 'load-lots', 'sync', 'LotQuery'),
+      edge('load-lots', 'detect-change', 'data', 'LotDataset'),
+      edge('detect-change', 'compare-context', 'data', 'StatisticalFindings'),
+      edge('compare-context', 'retrieve-cases', 'sync', 'ContextFindings'),
+      edge('retrieve-cases', 'form-hypothesis', 'data', 'SimilarCases[]'),
+      edge('form-hypothesis', 'verify-hypothesis', 'sync', 'Hypotheses[]'),
+      edge('verify-hypothesis', 'form-hypothesis', 'loop', 'CounterEvidence + MissingEvidence', '证据不足，继续循环'),
+      edge('verify-hypothesis', 'generate-report', 'sync', 'VerifiedHypotheses', '门禁通过'),
+      edge('generate-report', 'present-report', 'sync', 'EvidenceReport'),
+      edge('present-report', 'save-trace', 'async', 'AgentRunTrace + Feedback'),
+    ],
+  },
+  'agent-state': {
+    id: 'agent-state', eyebrow: 'CONTROLLED AGENT STATE MACHINE', title: 'Agent 执行状态、异常与工具边界',
+    summary: '每一步都携带工具契约、权限域、超时、重试和校验规则；模型只做受控规划，不能直接访问 SQL、文件系统或网络。',
+    nodes: [
+      node('received', 'access', 'RECEIVED', 'receiveTask()', '接收任务并生成 task_id、trace_id 与不可变原始输入。', 'TaskRequest', 'ReceivedTask', '重复幂等键返回既有任务。'),
+      node('authorized', 'access', 'AUTHORIZED', 'authorizeTask()', '确认租户、项目、产品、数据域和工具权限。', 'ReceivedTask + Identity', 'AuthorizedContext', '越权直接进入 FAILED，不调用任何工具。'),
+      node('planned', 'kernel', 'PLANNED', 'planTaskGraph()', '生成受限任务图、工具列表、依赖、预算与终止条件。', 'AuthorizedContext + ToolCatalog', 'ExecutionPlan', '无法形成可验证计划时返回澄清问题。'),
+      node('running-tool', 'service', 'RUNNING_TOOL', 'invokeControlledTool()', '按白名单调用工具，并传递 Schema 版本、权限域、超时和输入参数。', 'ToolCallContract', 'ToolResult', '工具无任意 SQL、文件系统或网络权限。'),
+      node('collecting-evidence', 'kernel', 'COLLECTING_EVIDENCE', 'collectEvidence()', '汇总数据、文档、关系、工具版本和结果引用。', 'ToolResult[]', 'EvidencePackage', '缺少来源、版本或权限标签的结果被丢弃。'),
+      gateNode('verifying', 'kernel', 'VERIFYING', 'verifyTaskResult()', '检查证据覆盖、冲突、数值正确性和完成条件。', 'EvidencePackage + AcceptanceRules', 'VerificationDecision', '验证失败可追加工具调用或降级。'),
+      node('completed', 'frontend', 'COMPLETED', 'publishResult()', '发布答案、证据、置信度、限制条件和可重放 Trace。', 'VerifiedResult', 'PublishedAnswer', '发布后修改必须生成新版本。'),
+      exceptionNode('retrying', 'service', 'RETRYING', 'scheduleRetry()', '对可重试错误执行指数退避并保留调用上下文。', 'RetryableFailure', 'RetryCommand', '超过最大次数转入 FAILED 或 DEGRADED。'),
+      exceptionNode('degraded', 'kernel', 'DEGRADED', 'buildDegradedResult()', '在工具不可用或证据不完整时返回受限结论。', 'PartialEvidence', 'QualifiedAnswer', '必须明确缺失条件，禁止伪装为完整答案。'),
+      exceptionNode('cancelled', 'storage', 'CANCELLED', 'cancelTask()', '传播取消信号并禁止未授权结果发布。', 'CancelCommand', 'CancelledTrace', '无法立即停止的工具结果完成后丢弃。'),
+      exceptionNode('timed-out', 'storage', 'TIMED_OUT', 'expireTask()', '达到任务或工具时间预算后结束执行。', 'TimeoutSignal', 'TimeoutTrace', '记录最后成功状态与可恢复入口。'),
+      exceptionNode('failed', 'storage', 'FAILED', 'recordFailure()', '保存错误码、失败步骤、输入摘要和是否可重放。', 'PermanentFailure', 'FailureTrace', '敏感堆栈仅写入受控日志。'),
+    ],
+    edges: [
+      edge('received', 'authorized', 'sync', 'ReceivedTask'),
+      edge('authorized', 'planned', 'sync', 'AuthorizedContext'),
+      edge('planned', 'running-tool', 'sync', 'ToolCallContract'),
+      edge('running-tool', 'collecting-evidence', 'data', 'ToolResult'),
+      edge('collecting-evidence', 'verifying', 'sync', 'EvidencePackage'),
+      edge('verifying', 'completed', 'sync', 'VerifiedResult', '通过'),
+      edge('running-tool', 'retrying', 'async', 'RetryableFailure'),
+      edge('retrying', 'running-tool', 'loop', 'RetryCommand', '退避后重试'),
+      edge('running-tool', 'degraded', 'async', 'UnavailableDependency'),
+      edge('verifying', 'degraded', 'async', 'PartialEvidence'),
+      edge('received', 'cancelled', 'async', 'CancelCommand', '任意状态'),
+      edge('running-tool', 'timed-out', 'async', 'TimeoutSignal', '超时'),
+      edge('authorized', 'failed', 'async', 'AuthorizationFailure'),
+      edge('retrying', 'failed', 'async', 'RetryExhausted'),
+    ],
+  },
+  'agent-context': {
+    id: 'agent-context', eyebrow: 'AGENT HANDOFF & CONTEXT ENGINEERING', title: 'Agent 状态传递、上下文清洗与压缩',
+    summary: 'Agent 之间只传递版本化的结构化状态和证据引用；上下文先清洗、再按预算分层压缩，最后通过权限、证据和版本门禁交接。',
+    nodes: [
+      node('build-envelope', 'kernel', '构建 AgentEnvelope', 'buildTransferEnvelope()', '从任务真值组装最小可执行上下文：目标、子任务、约束、权限域、工具预算、证据引用、上下文版本和恢复检查点。禁止复制完整聊天历史。', 'TaskState + EvidenceRefs + PolicySnapshot', 'AgentEnvelope(v, scope, budget, checkpoint)', '缺少 task_id、trace_id、目标或权限快照时不得交接。'),
+      gateNode('envelope-gate', 'kernel', '状态契约门禁', 'validateEnvelope()', '校验 Schema 版本、parent_run_id、权限域、工具白名单、预算和上下文版本。', 'AgentEnvelope', 'ValidatedEnvelope', '契约无效或权限扩大时进入隔离队列。'),
+      node('domain-agent', 'model', '专用 Agent', 'executeBoundedSubtask()', '仅在授权目标和工具范围内执行子任务，输出结构化 AgentResult，不输出新的系统权限。', 'ValidatedEnvelope', 'AgentResult + NewEvidenceRefs', '超预算、越权工具请求或无证据结论直接终止当前子任务。'),
+      node('collect-result', 'kernel', '回收 AgentResult', 'ingestAgentResult()', '把完成状态、事实、假设、未决问题、工具结果引用和错误状态合并到候选上下文。', 'AgentResult + PriorCheckpoint', 'CandidateContext', '迟到结果或旧 context_version 不直接覆盖当前任务状态。'),
+      node('classify-source', 'service', '来源与信任分级', 'classifyContextSources()', '区分系统策略、用户输入、工具结果、内部知识和外部文档，为每段内容标记来源、可信级别和权限域。', 'CandidateContext', 'ClassifiedContext', '来源不明的内容只能作为低信任数据，不能成为指令。'),
+      node('isolate-instructions', 'kernel', '指令 / 数据隔离', 'separateInstructionsFromData()', '把系统约束、任务目标与检索文档严格分区；文档中的命令性文字按数据处理。', 'ClassifiedContext', 'IsolatedContext', '检索内容不得覆盖系统策略、工具白名单或权限。'),
+      gateNode('scan-injection', 'model', 'Prompt 注入检测', 'scanPromptInjection()', '识别越权指令、角色冒充、要求泄露隐私或改变工具策略的可疑片段。', 'IsolatedContext', 'InjectionScanResult', '高风险片段隔离并保留来源，不能进入模型指令区。'),
+      node('sanitize-sensitive', 'service', '敏感信息处理', 'sanitizeSensitiveFields()', '根据项目策略脱敏密钥、个人信息和非本任务数据，同时保留可审计的字段映射。', 'InjectionScanResult + DataPolicy', 'SanitizedContext', '必要字段无权使用时终止子任务，不用虚构值补齐。'),
+      node('normalize-context', 'service', 'Schema 标准化', 'normalizeContextSchema()', '统一事实、假设、证据、未决问题、错误和工具结果的字段与版本。', 'SanitizedContext', 'NormalizedContext', '无法迁移的旧版本进入兼容转换或 Rebase。'),
+      gateNode('resolve-conflicts', 'kernel', '去重与冲突检测', 'deduplicateAndDetectConflict()', '按证据 ID、内容哈希和语义相似度去重；相互矛盾的事实并列保留并标记冲突。', 'NormalizedContext', 'ConflictAwareContext', '禁止用摘要静默覆盖原始冲突证据。'),
+      node('filter-relevance', 'access', '相关性与权限过滤', 'filterAuthorizedContext()', '依据当前子任务、信息增益、时效和权限删除无关片段，仅保留完成任务所需上下文。', 'ConflictAwareContext + CurrentGoal', 'AuthorizedWorkingSet', '低相关但可能影响安全或结论的内容转为引用，不直接删除。'),
+      gateNode('budget-60', 'kernel', '60% · 去重门槛', 'applyDedupBudget()', '上下文达到窗口约 60% 时，优先去重、合并相邻片段并把原始大对象改为引用。', 'AuthorizedWorkingSet + TokenBudget', 'DeduplicatedWorkingSet', '若压缩后仍超预算，进入结构化工作记忆。'),
+      node('evidence-refs', 'storage', '证据引用库', 'persistEvidenceReferences()', '原始文档、SQL 结果、图表、日志和工具产物只保存不可变引用、哈希、版本和权限标签。', 'RawEvidenceObjects', 'EvidenceRefs[]', '引用失效或哈希不一致时阻止后续交接。'),
+      node('working-memory', 'storage', '结构化工作记忆', 'buildStructuredMemory()', '把中间信息整理成事实表、假设表、证据矩阵、决策记录、待办和错误状态。', 'DeduplicatedWorkingSet + EvidenceRefs', 'StructuredWorkingMemory', '数值、ID、版本、单位和引用不得被自然语言摘要改写。'),
+      gateNode('budget-75', 'kernel', '75% · 摘要门槛', 'applySummaryBudget()', '达到约 75% 时压缩已经完成的推理过程，保留决策、依据、反例和未决问题。', 'StructuredWorkingMemory + TokenBudget', 'SummaryCommand', '不得摘要尚未验证的关键证据或精确计算结果。'),
+      node('rolling-summary', 'model', '滚动摘要', 'summarizeCompletedHistory()', '对已完成步骤生成版本化摘要，并用证据引用替换大段原文和重复工具输出。', 'SummaryCommand', 'RollingSummary(v)', '摘要必须通过事实、数字和引用一致性校验。'),
+      gateNode('budget-90', 'kernel', '90% · 检查点门槛', 'applyCheckpointBudget()', '达到约 90% 时停止继续扩张上下文，保存恢复检查点，并为下一 Agent 重新装配最小上下文。', 'RollingSummary + TokenBudget', 'CheckpointCommand', '无法降至安全预算时请求缩小任务范围或分批执行。'),
+      node('context-checkpoint', 'storage', '上下文检查点', 'saveContextCheckpoint()', '持久化状态版本、摘要、工作记忆、证据引用、权限快照、剩余预算和恢复入口。', 'CheckpointCommand + StructuredWorkingMemory', 'ContextCheckpoint', '写入失败不允许继续跨 Agent 传递。'),
+      gateNode('handoff-gate', 'kernel', 'Agent 交接门禁', 'verifyContextHandoff()', '检查 Schema、权限、证据来源、冲突、时效、Token 预算和 context_version，再决定通过、补证、Rebase 或隔离。', 'ContextCheckpoint + HandoffPolicy', 'HandoffDecision', '任何必填门禁失败都不能伪装成正常交接。'),
+      node('next-agent', 'model', '下游 Agent', 'resumeFromEnvelope()', '从检查点和最小 AgentEnvelope 恢复执行，不依赖上游 Agent 的隐式聊天记忆。', 'ApprovedEnvelope + ContextCheckpoint', 'NextAgentResult', '恢复后先校验目标与版本，发现漂移立即停止。'),
+      node('merge-agent-result', 'kernel', '状态归并与审计', 'mergeAgentState()', '以乐观版本控制合并结果，记录状态差异、证据变化、压缩比例和交接决策。', 'NextAgentResult + CurrentTaskState', 'VersionedTaskState + HandoffTrace', '版本冲突不覆盖，转入 Rebase。'),
+      exceptionNode('quarantine-context', 'storage', '拒绝传递 / 隔离', 'quarantineContext()', '保存无效契约、越权内容、注入风险和失败原因，供安全审计或人工处理。', 'RejectedContext', 'QuarantineRecord', '隔离内容不能被下游 Agent 自动读取。'),
+      exceptionNode('rebase-context', 'service', '版本过期 / Rebase', 'rebaseContext()', '装载最新任务真值，重新应用仍有效的 AgentResult，并生成新 context_version。', 'StaleEnvelope + LatestTaskState', 'RebasedTaskState', '无法自动合并的冲突进入人工确认。'),
+      exceptionNode('retrieve-missing', 'service', '证据缺失 / 补充检索', 'retrieveMissingEvidence()', '根据门禁缺口追加受控数据查询或知识检索，再重新进入清洗链。', 'MissingEvidencePlan', 'SupplementalEvidence', '补证达到预算上限后降级为待验证结论。'),
+    ],
+    edges: [
+      edge('build-envelope', 'envelope-gate', 'sync', 'AgentEnvelope'),
+      edge('envelope-gate', 'domain-agent', 'sync', 'ValidatedEnvelope', '契约通过'),
+      edge('envelope-gate', 'quarantine-context', 'async', 'RejectedEnvelope', 'Schema / 权限失败'),
+      edge('domain-agent', 'collect-result', 'data', 'AgentResult + NewEvidenceRefs'),
+      edge('collect-result', 'classify-source', 'sync', 'CandidateContext'),
+      edge('classify-source', 'isolate-instructions', 'sync', 'ClassifiedContext'),
+      edge('isolate-instructions', 'scan-injection', 'sync', 'IsolatedContext'),
+      edge('scan-injection', 'sanitize-sensitive', 'sync', 'InjectionScanResult'),
+      edge('scan-injection', 'quarantine-context', 'async', 'UnsafeContext', '高风险注入'),
+      edge('sanitize-sensitive', 'normalize-context', 'sync', 'SanitizedContext'),
+      edge('normalize-context', 'resolve-conflicts', 'sync', 'NormalizedContext'),
+      edge('resolve-conflicts', 'filter-relevance', 'sync', 'ConflictAwareContext'),
+      edge('filter-relevance', 'budget-60', 'sync', 'AuthorizedWorkingSet'),
+      edge('budget-60', 'evidence-refs', 'data', 'RawEvidenceObjects', '原文外置'),
+      edge('evidence-refs', 'working-memory', 'data', 'EvidenceRefs[]'),
+      edge('working-memory', 'budget-75', 'sync', 'StructuredWorkingMemory'),
+      edge('budget-75', 'rolling-summary', 'sync', 'SummaryCommand', '达到阈值'),
+      edge('rolling-summary', 'budget-90', 'sync', 'RollingSummary(v)'),
+      edge('budget-90', 'context-checkpoint', 'data', 'CheckpointCommand', '达到阈值'),
+      edge('context-checkpoint', 'handoff-gate', 'sync', 'ContextCheckpoint'),
+      edge('handoff-gate', 'next-agent', 'sync', 'ApprovedEnvelope + ContextCheckpoint', '门禁通过'),
+      edge('next-agent', 'merge-agent-result', 'data', 'NextAgentResult'),
+      edge('handoff-gate', 'quarantine-context', 'async', 'RejectedContext', 'Schema / 权限失败'),
+      edge('handoff-gate', 'rebase-context', 'async', 'StaleEnvelope', '版本过期'),
+      edge('handoff-gate', 'retrieve-missing', 'async', 'MissingEvidencePlan', '证据缺失'),
+      edge('rebase-context', 'build-envelope', 'loop', 'RebasedTaskState', '重建上下文'),
+      edge('retrieve-missing', 'classify-source', 'loop', 'SupplementalEvidence', '补证后重清洗'),
+    ],
+  },
+  messaging: {
+    id: 'messaging', eyebrow: 'TASK & MESSAGE CONTROL', title: '异步任务、状态与异常补偿',
+    summary: '短请求直达同步服务，长任务进入持久任务记录与队列；四类 Worker 独立执行并统一上报状态、结果和 Trace。',
+    nodes: [
+      node('web-console', 'frontend', 'Web Console', 'submitRequest()', '发起普通查询或文档解析、索引、分析和报告任务。', 'UserRequest', 'RequestEnvelope', '重复提交复用 idempotency_key。'),
+      node('api-gateway', 'access', 'API Gateway / BFF', 'dispatchRequest()', '完成授权并根据预计耗时分流同步请求与长任务。', 'RequestEnvelope + Identity', 'SyncCall / TaskCommand', '无法判断时默认创建可跟踪任务。'),
+      node('sync-service', 'service', 'Synchronous Service', 'executeShortRequest()', '执行权限检查、轻量检索和短查询。', 'SyncCall', 'ImmediateResult', '超过同步预算自动转成长任务。'),
+      node('task-center', 'kernel', 'Task Center', 'createLongTask()', '创建 task_id、幂等键、状态和 Outbox 消息。', 'TaskCommand', 'TaskRecord(RECEIVED)', '数据库事务失败时不投递消息。'),
+      node('task-db', 'storage', 'PostgreSQL Task Truth', 'persistTaskState()', '保存任务真值、状态历史、结果引用和错误上下文。', 'TaskRecord / StateEvent', 'DurableTaskState', '非法状态迁移拒绝写入并告警。'),
+      node('task-queue', 'storage', 'Redis / Queue', 'enqueueTask()', '投递任务、重试次数、优先级和可见性超时。', 'OutboxMessage', 'QueueEntry', '队列故障由 Outbox 重新投递。'),
+      node('parse-worker', 'service', 'Document Parse Worker', 'runDocumentParse()', '执行 OCR、版面、表格、章节和页码恢复。', 'document_parse Task', 'ParsedDocumentRef', '可重试解析错误执行指数退避。'),
+      node('index-worker', 'service', 'Index Worker', 'runIndexBuild()', '执行 Embedding、BM25、向量索引和别名切换。', 'index_build Task', 'IndexVersionRef', '新索引校验前不对线上可见。'),
+      node('analysis-worker', 'service', 'Analysis Worker', 'runBatchAnalysis()', '执行批次查询、统计计算、异常检测和证据构建。', 'analysis Task', 'AnalysisArtifactRef', '超出查询预算时缩减范围或失败退出。'),
+      node('report-worker', 'service', 'Report Worker', 'runReportTask()', '执行长报告评价、证据定位和报告生成。', 'report Task', 'ReportArtifactRef', '关键结论无证据时不得发布。'),
+      gateNode('result-verifier', 'kernel', 'Result Verifier', 'verifyWorkerResult()', '统一验证产物完整性、版本、引用、权限和发布条件。', 'WorkerArtifactRef', 'VerifiedArtifact', '失败产物进入重试或死信，不更新完成状态。'),
+      node('otel', 'storage', 'OpenTelemetry', 'emitTrace()', '关联 API、Task Center、Worker、存储和模型调用链。', 'Span + Metric + Log', 'TraceRecord', 'Trace 写入失败进入旁路缓冲，不阻断业务。'),
+      exceptionNode('dead-letter', 'storage', 'Dead Letter Queue', 'quarantineFailure()', '保存超过重试上限的消息、失败步骤和完整诊断上下文。', 'PermanentFailure', 'DLQRecord', '人工修复后使用原幂等键重放。'),
+      node('progress-api', 'access', 'Progress API / SSE', 'streamProgress()', '读取 PostgreSQL 状态并推送进度、错误和结果引用。', 'task_id', 'ProgressEvent', '连接断开后客户端可按 task_id 恢复。'),
+      node('task-monitor', 'frontend', 'Task Monitor', 'renderTaskTimeline()', '展示状态时间线、Worker、重试、失败原因和产物入口。', 'ProgressEvent', 'VisibleTaskState', '终态以后忽略迟到事件。'),
+    ],
+    edges: [
+      edge('web-console', 'api-gateway', 'sync', 'RequestEnvelope', 'HTTPS'),
+      edge('api-gateway', 'sync-service', 'sync', 'SyncCall', '短请求'),
+      edge('api-gateway', 'task-center', 'sync', 'TaskCommand', '创建长任务'),
+      edge('task-center', 'task-db', 'data', 'TaskRecord(RECEIVED)'),
+      edge('task-center', 'task-queue', 'async', 'OutboxMessage'),
+      edge('task-queue', 'parse-worker', 'async', 'document_parse Task'),
+      edge('task-queue', 'index-worker', 'async', 'index_build Task'),
+      edge('task-queue', 'analysis-worker', 'async', 'analysis Task'),
+      edge('task-queue', 'report-worker', 'async', 'report Task'),
+      edge('parse-worker', 'result-verifier', 'sync', 'ParsedDocumentRef'),
+      edge('index-worker', 'result-verifier', 'sync', 'IndexVersionRef'),
+      edge('analysis-worker', 'result-verifier', 'sync', 'AnalysisArtifactRef'),
+      edge('report-worker', 'result-verifier', 'sync', 'ReportArtifactRef'),
+      edge('result-verifier', 'task-db', 'data', 'VerifiedArtifact + StateEvent'),
+      edge('parse-worker', 'otel', 'async', 'WorkerSpan'),
+      edge('index-worker', 'otel', 'async', 'WorkerSpan'),
+      edge('analysis-worker', 'otel', 'async', 'WorkerSpan'),
+      edge('report-worker', 'otel', 'async', 'WorkerSpan'),
+      edge('result-verifier', 'dead-letter', 'async', 'PermanentFailure', '超过重试上限'),
+      edge('dead-letter', 'task-queue', 'loop', 'ReplayCommand', '修复后重放'),
+      edge('task-db', 'progress-api', 'sync', 'TaskStateEvent'),
+      edge('progress-api', 'task-monitor', 'sync', 'ProgressEvent', 'SSE'),
+    ],
+  },
+  optimization: {
+    id: 'optimization', eyebrow: 'EVALUATE · ATTRIBUTE · IMPROVE', title: '上线后的自动归因与优化闭环',
+    summary: '先把失败定位到文件、检索、生成、拒答或 Agent 执行层，再进行单变量实验、回归、盲测和受控发布。',
+    nodes: [
+      node('collect-signals', 'storage', 'Evaluation Signal Hub', 'collectSignals()', '汇总 Golden Set、线上反馈、Trace、指标异常和专家纠偏。', 'EvalRuns + Feedback + Traces', 'FailureSamples', '样本必须绑定任务、数据和组件版本。'),
+      gateNode('classify-failure', 'kernel', 'Failure Classifier', 'classifyFailure()', '依据正确证据是否存在、排名、答案忠实度、拒答和任务状态进行归因分层。', 'FailureSamples', 'FailureCategory', '分类低置信度时进入人工评审，不直接改参数。'),
+      node('missing-evidence', 'service', '找不到正确资料', 'diagnoseRecall()', '检查资料缺失、OCR/解析、Chunk、Metadata、权限过滤和召回。', 'RetrievalTrace + CorpusVersion', 'RecallDiagnosis', '先确认资料是否真实存在，再调整检索。'),
+      node('ranking-failure', 'service', '正确资料排名靠后', 'diagnoseRanking()', '检查 Metadata Filter、RRF、候选聚合、去重和 Reranker。', 'CandidateList + Scores', 'RankingDiagnosis', '固定候选集后再比较排序器。'),
+      node('generation-failure', 'model', '证据正确但答案错误', 'diagnoseGeneration()', '检查上下文组织、Prompt、工具契约、结构化输出和模型能力。', 'VerifiedEvidence + ModelTrace', 'GenerationDiagnosis', '固定证据后再比较 Prompt 或模型。'),
+      node('refusal-failure', 'kernel', '该拒答却强答', 'diagnoseRefusal()', '检查 Evidence Threshold、冲突检测、覆盖率和拒答策略。', 'EvidenceDecisionTrace', 'RefusalDiagnosis', '高风险场景优先提高拒答安全性。'),
+      node('agent-instability', 'kernel', '复杂任务不稳定', 'diagnoseAgentRun()', '检查任务拆解、工具边界、状态机、预算、终止和验证步骤。', 'AgentRunTrace', 'AgentDiagnosis', '禁止仅靠增加 Prompt 长度掩盖编排问题。'),
+      node('design-experiment', 'service', 'Single-variable Experiment', 'designControlledExperiment()', '固定数据集及其他组件，只改变一个候选因素。', 'Diagnosis + BaselineConfig', 'ExperimentPlan', '同时改变多项配置则结果不可归因。'),
+      node('run-regression', 'service', 'Offline Regression', 'runRegressionSet()', '在固定回归集上比较 Recall、排序、忠实度、任务成功率和性能。', 'ExperimentPlan + RegressionSet', 'RegressionReport', '任一发布红线退化即停止。'),
+      node('run-blind-test', 'frontend', 'Independent Blind Review', 'runBlindReview()', '由专家在独立盲测集上比较业务正确性和可用性。', 'CandidateOutputs', 'BlindReviewReport', '评审者不接触版本标签和实验假设。'),
+      gateNode('release-gate-opt', 'kernel', 'Release Gate', 'approveCandidate()', '综合自动指标、专家评价、安全红线和容量结果。', 'RegressionReport + BlindReviewReport', 'ReleaseDecision', '未通过则回到诊断或实验设计。'),
+      node('controlled-release', 'access', 'Controlled Release', 'deployCanary()', '以小流量、指定用户或指定任务类型发布候选版本。', 'ApprovedCandidate', 'CanaryVersion', '支持快速切回稳定版本。'),
+      node('monitor-release', 'storage', 'Online Monitoring', 'monitorCandidate()', '监测质量、P95/P99、拒答、错误率、反馈和版本差异。', 'CanaryMetrics + Feedback', 'MonitoringDecision', '指标退化自动回滚并生成失败样本。'),
+    ],
+    edges: [
+      edge('collect-signals', 'classify-failure', 'data', 'FailureSamples'),
+      edge('classify-failure', 'missing-evidence', 'sync', 'RetrievalFailure', '召回缺失'),
+      edge('classify-failure', 'ranking-failure', 'sync', 'RankingFailure', '排序靠后'),
+      edge('classify-failure', 'generation-failure', 'sync', 'GenerationFailure', '生成错误'),
+      edge('classify-failure', 'refusal-failure', 'sync', 'RefusalFailure', '拒答失效'),
+      edge('classify-failure', 'agent-instability', 'sync', 'AgentFailure', '任务不稳定'),
+      edge('missing-evidence', 'design-experiment', 'sync', 'RecallDiagnosis'),
+      edge('ranking-failure', 'design-experiment', 'sync', 'RankingDiagnosis'),
+      edge('generation-failure', 'design-experiment', 'sync', 'GenerationDiagnosis'),
+      edge('refusal-failure', 'design-experiment', 'sync', 'RefusalDiagnosis'),
+      edge('agent-instability', 'design-experiment', 'sync', 'AgentDiagnosis'),
+      edge('design-experiment', 'run-regression', 'sync', 'ExperimentPlan'),
+      edge('run-regression', 'run-blind-test', 'async', 'CandidateOutputs'),
+      edge('run-blind-test', 'release-gate-opt', 'sync', 'BlindReviewReport'),
+      edge('release-gate-opt', 'controlled-release', 'async', 'ApprovedCandidate'),
+      edge('controlled-release', 'monitor-release', 'data', 'CanaryMetrics'),
+      edge('monitor-release', 'classify-failure', 'loop', 'RegressionAlert + FailureSamples', '退化则回滚并重新归因'),
+    ],
+  },
+});
+
+function getFlowScenario(id) {
+  return FLOW_SCENARIOS[id] ?? FLOW_SCENARIOS.online;
+}
+
+return { FLOW_LANES, FLOW_SCENARIOS, getFlowScenario };
+})();
+const __navigation = (() => {
+
+const ROUTES = Object.freeze({
+  overview: Object.freeze(['summary']),
+  architecture: Object.freeze(['layers', 'storage']),
+  evolution: Object.freeze(['pipeline']),
+  runtime: Object.freeze(['online', 'ate', 'documents', 'relations', 'agent', 'agent-state', 'agent-context', 'messaging', 'optimization']),
+  execution: Object.freeze(['overview', 'document', 'index', 'analysis', 'report']),
+  roadmap: Object.freeze(['workpacks', 'stack']),
+  interfaces: Object.freeze(['apis', 'schemas']),
+  quality: Object.freeze(['framework', 'metrics', 'governance']),
+});
+
+function parseHash(hash = '') {
+  const match = /^#?\/([^?]+)(?:\?(.+))?$/.exec(hash);
+  const requestedView = match?.[1] ?? '';
+  const view = Object.hasOwn(ROUTES, requestedView)
+    ? requestedView
+    : 'overview';
+  const params = new URLSearchParams(match?.[2] ?? '');
+  const requestedTab = params.get('tab');
+  const tab = ROUTES[view].includes(requestedTab)
+    ? requestedTab
+    : ROUTES[view][0];
+
+  return { view, tab };
+}
+
+function routeHash(view, tab) {
+  const safeView = Object.hasOwn(ROUTES, view) ? view : 'overview';
+  const safeTab = ROUTES[safeView].includes(tab) ? tab : ROUTES[safeView][0];
+  const suffix = safeTab === ROUTES[safeView][0] ? '' : `?tab=${safeTab}`;
+  return `#/${safeView}${suffix}`;
+}
+
+return { ROUTES, parseHash, routeHash };
+})();
+const __flowEngine = (() => {
+
+function createPlayback(moduleCount) {
+  if (moduleCount <= 0) return { step: -1, edge: -1, complete: true };
+  return { step: 0, edge: -1, complete: false };
+}
+
+function stepPlayback(state, moduleCount) {
+  if (state.complete || moduleCount <= 0) return state;
+  const nextStep = Math.min(state.step + 1, moduleCount - 1);
+  return {
+    step: nextStep,
+    edge: Math.max(0, nextStep - 1),
+    complete: nextStep === moduleCount - 1,
+  };
+}
+
+function resetPlayback() {
+  return { step: 0, edge: -1, complete: false };
+}
+
+function centeredScrollLeft(nodeX, nodeWidth, viewportWidth, stageWidth) {
+  const desired = nodeX + nodeWidth / 2 - viewportWidth / 2;
+  return Math.max(0, Math.min(desired, Math.max(0, stageWidth - viewportWidth)));
+}
+
+return { createPlayback, stepPlayback, resetPlayback, centeredScrollLeft };
+})();
+const __flowRenderer = (() => {
+
+function flowPath(source, target) {
+  const sx = source.x + 160;
+  const sy = source.y + 38;
+  const tx = target.x;
+  const ty = target.y + 38;
+  if (tx > sx) return `M ${sx} ${sy} C ${sx + 55} ${sy}, ${tx - 55} ${ty}, ${tx} ${ty}`;
+  const bend = Math.max(sy, ty) + 78;
+  return `M ${sx} ${sy} C ${sx + 70} ${bend}, ${tx - 70} ${bend}, ${tx} ${ty}`;
+}
+
+function buildRuntimeGraphModel(scenario, state, selectedNodeId, viewportWidth = 1160, lanes = []) {
+  const laneIds = lanes.length
+    ? lanes.map((item) => item.id)
+    : ['frontend', 'access', 'kernel', 'service', 'model', 'storage'];
+  const width = Math.max(viewportWidth, scenario.nodes.length * 190 + 180);
+  const height = laneIds.length * 116 + 36;
+  const positions = new Map(scenario.nodes.map((item, index) => [item.id, {
+    x: 145 + index * 190,
+    y: 18 + Math.max(0, laneIds.indexOf(item.lane)) * 116,
+  }]));
+  const activeEdge = scenario.edges[state.edge];
+  const activeNodeId = activeEdge?.to ?? scenario.nodes[0]?.id ?? null;
+  const validSelection = scenario.nodes.some((item) => item.id === selectedNodeId)
+    ? selectedNodeId
+    : activeNodeId;
+
+  return {
+    width,
+    height,
+    positions,
+    nodes: scenario.nodes,
+    edges: scenario.edges,
+    activeEdge,
+    activeNodeId,
+    selectedNodeId: validSelection,
+    activeEdgeIndex: state.edge,
+  };
+}
+
+function renderRuntimeStage(model, lanes, escapeHTML) {
+  const laneRows = lanes.map((lane, index) => `
+    <div class="graph-lane ${lane.id}" style="top:${index * 116}px;height:116px;width:${model.width}px">
+      <span><b>${lane.code}</b>${lane.label}</span>
+    </div>`).join('');
+
+  const edges = model.edges.map((item, index) => {
+    const source = model.positions.get(item.from);
+    const target = model.positions.get(item.to);
+    const path = flowPath(source, target);
+    const status = index === model.activeEdgeIndex ? 'active' : index < model.activeEdgeIndex ? 'complete' : '';
+    const semantic = model.nodes.find((node) => node.id === item.to)?.visual === 'exception' ? 'failure' : '';
+    return `<g class="graph-edge ${item.kind} ${semantic} ${status}">
+      <path class="edge-base" d="${path}"/>
+      <path class="edge-trail" d="${path}"/>
+      ${index === model.activeEdgeIndex ? `<circle class="edge-particle" r="5"><animateMotion dur="1.15s" repeatCount="indefinite" path="${path}"/></circle><circle class="edge-particle tail" r="2.5"><animateMotion begin="-.18s" dur="1.15s" repeatCount="indefinite" path="${path}"/></circle>` : ''}
+      ${item.label ? `<text x="${(source.x + target.x) / 2 + 80}" y="${Math.min(source.y, target.y) + 26}">${escapeHTML(item.label)}</text>` : ''}
+    </g>`;
+  }).join('');
+
+  const nodes = model.nodes.map((item, index) => {
+    const pos = model.positions.get(item.id);
+    const lane = lanes.find((entry) => entry.id === item.lane);
+    const active = item.id === model.activeNodeId ? 'active' : '';
+    const selected = item.id === model.selectedNodeId ? 'selected' : '';
+    return `<button class="graph-node ${item.lane} ${item.visual ?? 'module'} ${active} ${selected}" style="left:${pos.x}px;top:${pos.y}px" data-flow-node="${item.id}" type="button">
+      <span class="node-index mono">${String(index + 1).padStart(2, '0')} · ${lane?.code ?? ''}</span>
+      <strong>${escapeHTML(item.label)}</strong>
+      <code>${escapeHTML(item.fn)}</code>
+    </button>`;
+  }).join('');
+
+  return `${laneRows}<svg class="flow-svg" width="${model.width}" height="${model.height}" viewBox="0 0 ${model.width} ${model.height}" aria-hidden="true">${edges}</svg>${nodes}`;
+}
+
+return { buildRuntimeGraphModel, renderRuntimeStage };
+})();
+const __executionFlows = (() => {
+
+const COMMON_STEPS = Object.freeze([
+  { id: 'start', label: 'START', fn: 'receiveMessage()', type: 'start', detail: 'Worker 收到队列消息并创建本次执行上下文。' },
+  { id: 'claim-task', label: '领取任务', fn: 'claimTask()', type: 'process', detail: '以任务 ID 申请执行租约，避免多个 Worker 重复消费。' },
+  { id: 'lease-ok', label: '取得租约？', fn: 'acquireLease()', type: 'decision', detail: '成功则继续；失败表示任务正被其他 Worker 处理。' },
+  { id: 'delay-exit', label: '延迟重试 / 退出', fn: 'deferOrExit()', type: 'terminal', detail: '不执行业务逻辑，等待租约释放或安全退出。' },
+  { id: 'idempotency', label: '检查幂等', fn: 'checkIdempotency()', type: 'process', detail: '查询同一任务、版本和输入是否已有成功产物。' },
+  { id: 'result-exists', label: '已有成功结果？', fn: 'findSucceededArtifact()', type: 'decision', detail: '命中时复用结果，防止重放造成重复索引或重复发布。' },
+  { id: 'reuse-result', label: '返回既有结果', fn: 'reuseArtifact()', type: 'terminal', detail: '回传已发布产物引用并记录幂等命中。' },
+  { id: 'validate-schema', label: '校验消息契约', fn: 'validateSchema()', type: 'process', detail: '校验 Schema 版本、必填字段、类型和输入引用。' },
+  { id: 'authorize', label: '校验资源权限', fn: 'authorizeResource()', type: 'process', detail: '在服务端校验项目、产品、文档和数据域权限。' },
+  { id: 'load-inputs', label: '装载输入引用', fn: 'loadInputReferences()', type: 'process', detail: '按引用读取原始对象、数据分区或上游产物，不在消息中搬运大文件。' },
+  { id: 'execute-domain', label: '执行领域管道', fn: 'executeDomainPipeline()', type: 'process', detail: '进入当前 Worker 的核心函数链，输出候选产物。' },
+  { id: 'validate-artifact', label: '校验产物', fn: 'validateArtifact()', type: 'process', detail: '执行结构、完整性、证据覆盖和质量阈值检查。' },
+  { id: 'artifact-valid', label: '产物有效？', fn: 'qualityGate()', type: 'decision', detail: '只有通过门禁的产物才能原子发布。' },
+  { id: 'publish', label: '原子发布', fn: 'publishAtomically()', type: 'process', detail: '先写临时版本，成功后一次切换可见版本，避免半成品。' },
+  { id: 'completed', label: 'COMPLETED', fn: 'updateTaskState()', type: 'terminal success', detail: 'PostgreSQL 中的任务真值进入完成状态并关联产物版本。' },
+  { id: 'emit-trace', label: '回传进度与 Trace', fn: 'emitTraceAndProgress()', type: 'terminal success', detail: '通过 SSE 回传结果，并向 OpenTelemetry 写入执行链路。' },
+  { id: 'retryable', label: '错误可重试？', fn: 'classifyError()', type: 'decision error', detail: '瞬时网络、限流等进入重试；契约、权限和坏数据等直接失败。' },
+  { id: 'retrying', label: 'RETRYING / 重新入队', fn: 'scheduleRetry()', type: 'process retry', detail: '按退避策略重新入队；演示路径只回放一次，不形成无限循环。' },
+  { id: 'failed', label: 'DEAD LETTER / FAILED', fn: 'deadLetter()', type: 'terminal error', detail: '写入失败原因和上下文，进入人工或自动补偿队列。' },
+  { id: 'timed-out', label: 'TIMED OUT', fn: 'expireTask()', type: 'terminal error', detail: '超过任务预算后主动终止工具调用，保存现场并释放租约。' },
+  { id: 'cancelled', label: 'CANCELLED', fn: 'cancelTask()', type: 'terminal error', detail: '收到用户或治理策略的取消信号，安全终止并清理临时产物。' },
+]);
+
+const NORMAL = ['start', 'claim-task', 'lease-ok', 'idempotency', 'result-exists', 'validate-schema', 'authorize', 'load-inputs', 'execute-domain', 'validate-artifact', 'artifact-valid', 'publish', 'completed', 'emit-trace'];
+const RETRY = ['start', 'claim-task', 'lease-ok', 'idempotency', 'result-exists', 'validate-schema', 'authorize', 'load-inputs', 'execute-domain', 'validate-artifact', 'artifact-valid', 'retryable', 'retrying', 'claim-task', 'lease-ok', 'idempotency', 'result-exists', 'validate-schema', 'authorize', 'load-inputs', 'execute-domain', 'validate-artifact', 'artifact-valid', 'publish', 'completed', 'emit-trace'];
+const FAILED = ['start', 'claim-task', 'lease-ok', 'idempotency', 'result-exists', 'validate-schema', 'authorize', 'load-inputs', 'execute-domain', 'validate-artifact', 'artifact-valid', 'retryable', 'failed'];
+
+const BASE_TRANSITIONS = Object.freeze([
+  { from: 'start', to: 'claim-task', label: '开始', kind: 'main' },
+  { from: 'claim-task', to: 'lease-ok', label: '申请租约', kind: 'main' },
+  { from: 'lease-ok', to: 'idempotency', label: '是', kind: 'main' },
+  { from: 'lease-ok', to: 'delay-exit', label: '否', kind: 'exit' },
+  { from: 'idempotency', to: 'result-exists', label: '检查结果', kind: 'main' },
+  { from: 'result-exists', to: 'reuse-result', label: '是 / 命中', kind: 'exit' },
+  { from: 'result-exists', to: 'validate-schema', label: '否 / 未命中', kind: 'main' },
+  { from: 'validate-schema', to: 'authorize', label: '契约有效', kind: 'main' },
+  { from: 'authorize', to: 'load-inputs', label: '授权通过', kind: 'main' },
+  { from: 'validate-artifact', to: 'artifact-valid', label: '校验完成', kind: 'main' },
+  { from: 'artifact-valid', to: 'publish', label: '是 / 通过', kind: 'main' },
+  { from: 'artifact-valid', to: 'retryable', label: '否 / 未通过', kind: 'failure' },
+  { from: 'retryable', to: 'retrying', label: '是 / 瞬时错误', kind: 'retry' },
+  { from: 'retryable', to: 'failed', label: '否 / 确定性错误', kind: 'failure' },
+  { from: 'retrying', to: 'claim-task', label: '退避后重新领取', kind: 'loop' },
+  { from: 'publish', to: 'completed', label: '发布成功', kind: 'main' },
+  { from: 'completed', to: 'emit-trace', label: '回传结果', kind: 'main' },
+]);
+
+const domainStep = (id, label, fn, type, detail, x, y) => ({ id, label, fn, type, detail, position: [x, y] });
+
+const DOMAIN_BLUEPRINTS = Object.freeze({
+  overview: {
+    entry: 'route-task', exit: 'aggregate-gate', timeoutFrom: 'await-workers',
+    primaryPath: ['route-task', 'dispatch-workers', 'await-workers', 'merge-results', 'aggregate-gate'],
+    steps: [
+      domainStep('route-task', '任务类型与依赖？', 'routeTaskGraph()', 'decision', '识别数据、知识、报告或组合任务，并生成依赖图。', 360, 780),
+      domainStep('route-reject', '无法路由 / 请求澄清', 'requestClarification()', 'terminal', '意图或数据范围不完整时返回澄清问题。', 40, 875),
+      domainStep('dispatch-workers', '分发专用 Worker', 'dispatchWorkers()', 'process', '按依赖与并行条件分发文档、索引、分析或报告 Worker。', 360, 875),
+      domainStep('await-workers', '等待并收集结果', 'awaitWorkerResults()', 'process', '收集子任务状态、证据引用与错误，并执行预算控制。', 360, 970),
+      domainStep('merge-results', '结果汇合与去冲突', 'mergeWorkerResults()', 'process', '按证据版本合并结果，保留冲突项和未完成项。', 360, 1065),
+      domainStep('aggregate-gate', '汇合结果可用？', 'verifyAggregate()', 'decision', '检查必要 Worker 是否成功以及证据覆盖是否达到门槛。', 360, 1160),
+      domainStep('aggregate-review', '人工确认 / 降级输出', 'degradeOrReview()', 'terminal error', '关键分支失败或证据冲突时进入人工确认或降级输出。', 690, 1255),
+    ],
+    transitions: [
+      { from: 'route-task', to: 'dispatch-workers', label: '可路由', kind: 'main' },
+      { from: 'route-task', to: 'route-reject', label: '信息不足', kind: 'exit' },
+      { from: 'dispatch-workers', to: 'await-workers', label: '并行 / 串行执行', kind: 'main' },
+      { from: 'await-workers', to: 'merge-results', label: '子任务返回', kind: 'main' },
+      { from: 'merge-results', to: 'aggregate-gate', label: '合并完成', kind: 'main' },
+      { from: 'aggregate-gate', to: 'aggregate-review', label: '否 / 冲突', kind: 'failure' },
+    ],
+  },
+  document: {
+    entry: 'doc-security', exit: 'doc-structure-gate',
+    primaryPath: ['doc-security', 'doc-detect-type', 'doc-native-parse', 'doc-restore-layout', 'doc-extract-table', 'doc-structure-gate'],
+    steps: [
+      domainStep('doc-security', '文件安全预处理', 'inspectDocument()', 'process', '校验文件类型、哈希、解密策略与病毒扫描结果。', 360, 780),
+      domainStep('doc-detect-type', '是否需要 OCR？', 'detectDocumentMode()', 'decision', '区分原生文本、扫描页、混合页和复杂表格。', 360, 875),
+      domainStep('doc-ocr', 'OCR / 视觉识别', 'runOcrAndVision()', 'process', '对扫描页执行 OCR、方向矫正和视觉区域识别。', 40, 970),
+      domainStep('doc-native-parse', '原生内容解析', 'parseNativeDocument()', 'process', '直接读取 PDF、Word、Excel 的原生结构和文本对象。', 360, 970),
+      domainStep('doc-restore-layout', '版面与阅读顺序恢复', 'restoreLayout()', 'process', '恢复标题层级、段落、页码、跨栏和阅读顺序。', 360, 1065),
+      domainStep('doc-extract-table', '表格与章节抽取', 'extractTablesAndSections()', 'process', '抽取表格、章节和图注，并绑定页面坐标。', 360, 1160),
+      domainStep('doc-structure-gate', '结构质量通过？', 'validateDocumentStructure()', 'decision', '检查页覆盖率、阅读顺序、表格完整性和字符质量。', 360, 1255),
+      domainStep('doc-review', '专家确认队列', 'queueDocumentReview()', 'terminal error', '低质量页或复杂表格进入人工确认，不直接发布。', 690, 1350),
+    ],
+    transitions: [
+      { from: 'doc-security', to: 'doc-detect-type', label: '安全检查通过', kind: 'main' },
+      { from: 'doc-detect-type', to: 'doc-ocr', label: '是 / 扫描页', kind: 'exit' },
+      { from: 'doc-detect-type', to: 'doc-native-parse', label: '否 / 原生文本', kind: 'main' },
+      { from: 'doc-ocr', to: 'doc-restore-layout', label: 'OCR 结果', kind: 'exit' },
+      { from: 'doc-native-parse', to: 'doc-restore-layout', label: '原生结构', kind: 'main' },
+      { from: 'doc-restore-layout', to: 'doc-extract-table', label: '版面结构', kind: 'main' },
+      { from: 'doc-extract-table', to: 'doc-structure-gate', label: '结构化文档', kind: 'main' },
+      { from: 'doc-structure-gate', to: 'doc-review', label: '否 / 低质量', kind: 'failure' },
+    ],
+  },
+  index: {
+    entry: 'index-load', exit: 'index-recall-gate',
+    primaryPath: ['index-load', 'index-chunk', 'index-metadata-gate', 'index-bm25', 'index-embed', 'index-vector', 'index-recall-gate'],
+    steps: [
+      domainStep('index-load', '装载结构化文档', 'loadParsedDocument()', 'process', '读取已发布文档版本、页面结构和权限 Metadata。', 360, 780),
+      domainStep('index-chunk', '语义 Chunk', 'buildSemanticChunks()', 'process', '按章节、表格和语义边界切分，保留父子关系。', 360, 875),
+      domainStep('index-metadata-gate', 'Metadata 完整？', 'validateChunkMetadata()', 'decision', '校验文档、页码、产品、设备、版本和权限字段。', 360, 970),
+      domainStep('index-repair', '修复 Metadata', 'repairMetadata()', 'terminal error', '缺失强过滤字段时回到解析或专家确认队列。', 40, 1065),
+      domainStep('index-bm25', '构建 BM25 索引', 'buildKeywordIndex()', 'process', '写入关键词、错误码、型号和可过滤字段。', 360, 1065),
+      domainStep('index-embed', '生成 Embedding', 'embedChunks()', 'process', '批量生成向量并记录模型与维度版本。', 360, 1160),
+      domainStep('index-vector', '构建向量索引', 'buildVectorIndex()', 'process', '写入 Dense Vector 与关联 Metadata。', 360, 1255),
+      domainStep('index-recall-gate', '召回抽检通过？', 'runRecallSmokeTest()', 'decision', '使用固定 Query Set 检查 Recall@K、过滤和引用可用性。', 360, 1350),
+      domainStep('index-rebuild', '拒绝发布 / 重建', 'rejectIndexVersion()', 'terminal error', '召回或过滤不达标时保留旧别名并重新构建。', 690, 1445),
+    ],
+    transitions: [
+      { from: 'index-load', to: 'index-chunk', label: '文档版本', kind: 'main' },
+      { from: 'index-chunk', to: 'index-metadata-gate', label: 'Chunk + Metadata', kind: 'main' },
+      { from: 'index-metadata-gate', to: 'index-bm25', label: '是 / 完整', kind: 'main' },
+      { from: 'index-metadata-gate', to: 'index-repair', label: '否 / 缺字段', kind: 'failure' },
+      { from: 'index-bm25', to: 'index-embed', label: '关键词索引', kind: 'main' },
+      { from: 'index-embed', to: 'index-vector', label: '向量批次', kind: 'main' },
+      { from: 'index-vector', to: 'index-recall-gate', label: '候选索引版本', kind: 'main' },
+      { from: 'index-recall-gate', to: 'index-rebuild', label: '否 / 不达标', kind: 'failure' },
+    ],
+  },
+  analysis: {
+    entry: 'analysis-scope', exit: 'analysis-cross-check',
+    primaryPath: ['analysis-scope', 'analysis-data-quality', 'analysis-query', 'analysis-statistics', 'analysis-anomaly-gate', 'analysis-context', 'analysis-cross-check'],
+    steps: [
+      domainStep('analysis-scope', '解析分析范围', 'resolveAnalysisScope()', 'process', '确定批次、产品、参数、时间窗、分组和对照基线。', 360, 780),
+      domainStep('analysis-data-quality', '数据质量可用？', 'checkAnalysisDataQuality()', 'decision', '检查样本量、缺失、重复、口径、版本和分组完整性。', 360, 875),
+      domainStep('analysis-data-repair', '补数 / 降低置信度', 'repairOrDegrade()', 'terminal error', '数据不足时补数、缩小问题范围或显式降低结论置信度。', 40, 970),
+      domainStep('analysis-query', '编译受控查询', 'compileReadOnlyQuery()', 'process', '通过语义层生成只读 SQL 和查询预算。', 360, 970),
+      domainStep('analysis-statistics', '统计与趋势计算', 'computeStatistics()', 'process', '执行良率、分组、Cp/Cpk、趋势、变点和相关性计算。', 360, 1065),
+      domainStep('analysis-anomaly-gate', '发现显著异常？', 'detectSignificantAnomaly()', 'decision', '根据效应量、稳定性和业务门槛判断是否需要归因。', 360, 1160),
+      domainStep('analysis-no-anomaly', '输出稳定性结论', 'reportNoSignificantChange()', 'terminal', '没有显著异常时输出覆盖范围与统计置信度。', 40, 1255),
+      domainStep('analysis-context', '关联工艺与历史案例', 'retrieveAnalysisContext()', 'process', '结合工艺变更、设备、Site 和历史故障案例形成候选原因。', 360, 1255),
+      domainStep('analysis-cross-check', '交叉验证原因假设', 'crossValidateHypotheses()', 'process', '用分组对照、时间趋势和历史证据验证或否决假设。', 360, 1350),
+    ],
+    transitions: [
+      { from: 'analysis-scope', to: 'analysis-data-quality', label: '范围确定', kind: 'main' },
+      { from: 'analysis-data-quality', to: 'analysis-query', label: '是 / 可用', kind: 'main' },
+      { from: 'analysis-data-quality', to: 'analysis-data-repair', label: '否 / 不可用', kind: 'failure' },
+      { from: 'analysis-query', to: 'analysis-statistics', label: '结果集', kind: 'main' },
+      { from: 'analysis-statistics', to: 'analysis-anomaly-gate', label: '统计发现', kind: 'main' },
+      { from: 'analysis-anomaly-gate', to: 'analysis-context', label: '是 / 需归因', kind: 'main' },
+      { from: 'analysis-anomaly-gate', to: 'analysis-no-anomaly', label: '否 / 稳定', kind: 'exit' },
+      { from: 'analysis-context', to: 'analysis-cross-check', label: '候选假设', kind: 'main' },
+    ],
+  },
+  report: {
+    entry: 'report-parse', exit: 'report-review-gate',
+    primaryPath: ['report-parse', 'report-rules', 'report-collect-evidence', 'report-evidence-gate', 'report-evaluate', 'report-render', 'report-review-gate'],
+    steps: [
+      domainStep('report-parse', '解析报告结构', 'parseReportTemplate()', 'process', '识别报告类型、章节、必填项、表格和评价范围。', 360, 780),
+      domainStep('report-rules', '装载评价规则', 'loadEvaluationRules()', 'process', '按产品、版本和报告类型装载规则及阈值。', 360, 875),
+      domainStep('report-collect-evidence', '收集数据与文档证据', 'collectReportEvidence()', 'process', '汇集统计结果、原文页码、案例和规则命中信息。', 360, 970),
+      domainStep('report-evidence-gate', '证据是否充分？', 'checkEvidenceCoverage()', 'decision', '检查关键结论的证据覆盖、冲突和版本一致性。', 360, 1065),
+      domainStep('report-request-evidence', '请求补充证据', 'requestMissingEvidence()', 'terminal error', '证据不足时返回缺口列表，不生成确定性评价。', 40, 1160),
+      domainStep('report-evaluate', '执行分项评价', 'evaluateReportSections()', 'process', '规则、统计和模型判断分层执行并保留原因。', 360, 1160),
+      domainStep('report-render', '生成评价报告', 'renderEvaluationReport()', 'process', '生成结论、风险项、证据引用和修订建议。', 360, 1255),
+      domainStep('report-review-gate', '审核一致性通过？', 'reviewReportConsistency()', 'decision', '校验数值、引用、规则版本和结论一致性。', 360, 1350),
+      domainStep('report-manual-review', '人工审核队列', 'queueReportReview()', 'terminal error', '高风险或冲突结论进入专家审核。', 690, 1445),
+    ],
+    transitions: [
+      { from: 'report-parse', to: 'report-rules', label: '报告结构', kind: 'main' },
+      { from: 'report-rules', to: 'report-collect-evidence', label: '规则集', kind: 'main' },
+      { from: 'report-collect-evidence', to: 'report-evidence-gate', label: '证据包', kind: 'main' },
+      { from: 'report-evidence-gate', to: 'report-evaluate', label: '是 / 充分', kind: 'main' },
+      { from: 'report-evidence-gate', to: 'report-request-evidence', label: '否 / 有缺口', kind: 'failure' },
+      { from: 'report-evaluate', to: 'report-render', label: '评价结果', kind: 'main' },
+      { from: 'report-render', to: 'report-review-gate', label: '报告草稿', kind: 'main' },
+      { from: 'report-review-gate', to: 'report-manual-review', label: '否 / 高风险', kind: 'failure' },
+    ],
+  },
+});
+
+const configs = {
+  overview: { title: '完整任务链', summary: '从 Web 创建任务，到队列分发、Worker 执行、产物发布、SSE 回传与 Trace 归档。', actor: 'Web Console / API', process: '任务分流与 Worker 执行', input: '任务请求 / 文件与数据引用', output: '已发布产物 / SSE 结果', domain: 'dispatchTask() → executeWorker()', stores: [['pg', 'PostgreSQL', '任务真值 / 租约 / 产物版本'], ['redis', 'Redis / Queue', '消息 / 重试 / 并发控制'], ['minio', 'MinIO / Parquet', '原始文件与分析数据'], ['output', '业务存储 / 索引', '发布后的结果'], ['otel', 'OpenTelemetry', 'Trace / Metric / Log']] },
+  document: { title: '文档解析 Worker', summary: '把原始 PDF、Word、Excel 与扫描件还原成带页码、版面、表格和阅读顺序的结构化文档。', actor: 'Task Center', process: 'OCR 与结构还原', input: 'MinIO 原始文件', output: '结构化文档 / 页面 / 表格', domain: 'detectType() → ocr() → restoreLayout()', stores: [['pg', 'PostgreSQL', '文档登记 / 版本 / 任务'], ['redis', 'Redis / Queue', '解析消息 / 重试'], ['minio', 'MinIO 原始区', '不可变原文'], ['output', 'MinIO 解析区', '页面 / 表格 / 结构 JSON'], ['otel', 'OpenTelemetry', '解析耗时 / 错误 / Trace']] },
+  index: { title: '索引 Worker', summary: '将结构化文档生成语义 Chunk、Metadata、BM25 与向量索引，并通过别名切换原子发布。', actor: 'Task Center', process: 'Chunk 与混合索引', input: '结构化文档 / 版本', output: 'BM25 / Vector 可检索版本', domain: 'chunk() → embed() → bulkIndex()', stores: [['pg', 'PostgreSQL', '索引任务 / 文档版本'], ['redis', 'Redis / Queue', '索引消息 / 重试'], ['minio', 'MinIO 解析区', '结构化文档'], ['output', 'OpenSearch / Qdrant', '关键词与向量索引'], ['otel', 'OpenTelemetry', '召回制品 / Trace']] },
+  analysis: { title: '分析 Worker', summary: '按受控查询计划读取 ATE 数据，执行统计、趋势和异常分析并生成可复算证据。', actor: 'Agent / Task Center', process: '数据查询与统计分析', input: '批次范围 / 指标 / 过滤条件', output: '统计结果 / 图表数据 / 证据', domain: 'compileQuery() → computeStats() → verifyResult()', stores: [['pg', 'PostgreSQL', '任务 / 语义层 / 查询记录'], ['redis', 'Redis / Queue', '分析任务 / 预算'], ['minio', 'Parquet 分析区', '批次 / 晶圆 / 参数明细'], ['output', 'MinIO / PostgreSQL', '结果集 / 图表 / 证据'], ['otel', 'OpenTelemetry', 'SQL / 函数 / 数据版本']] },
+  report: { title: '报告 Worker', summary: '汇集数据证据与文档证据，执行评价规则并生成带引用、版本和审计信息的报告。', actor: 'Agent / Web Console', process: '报告评价与生成', input: '报告模板 / 规则 / 证据引用', output: '评价结论 / 报告制品', domain: 'evaluateRules() → bindEvidence() → renderReport()', stores: [['pg', 'PostgreSQL', '规则 / 任务 / 审计'], ['redis', 'Redis / Queue', '报告任务 / 重试'], ['minio', 'MinIO 证据区', '原文 / 图表 / 数据证据'], ['output', 'MinIO 报告区', 'PDF / JSON / 版本'], ['otel', 'OpenTelemetry', '规则命中 / 引用 / Trace']] },
+};
+
+function makeScenario(id, config) {
+  const domain = DOMAIN_BLUEPRINTS[id];
+  const stores = config.stores.map(([storeId, label, detail]) => ({ id: storeId, label, detail }));
+  const entities = [{ id: 'actor', label: config.actor }, { id: 'consumer', label: id === 'overview' ? 'Web Console / 审计' : '下游服务 / 用户' }];
+  const processes = [
+    { id: 'register', label: '任务登记与分发', fn: 'createTask() / enqueue()' },
+    { id: 'worker', label: 'Worker 执行控制', fn: 'claimTask() / checkIdempotency()' },
+    { id: 'domain', label: config.process, fn: config.domain },
+    { id: 'quality', label: '产物验证与门禁', fn: 'validateArtifact() / qualityGate()' },
+    { id: 'publish', label: '原子发布与回传', fn: 'publishAtomically() / emitProgress()' },
+  ];
+  const flows = [
+    { from: 'actor', to: 'register', label: '任务请求' }, { from: 'register', to: 'pg', label: '任务真值' },
+    { from: 'register', to: 'redis', label: '任务消息' }, { from: 'redis', to: 'worker', label: '领取 / 重试' },
+    { from: 'worker', to: 'pg', label: '租约 / 幂等' }, { from: 'minio', to: 'domain', label: config.input },
+    { from: 'worker', to: 'domain', label: '已授权输入引用' }, { from: 'domain', to: 'quality', label: '候选产物' },
+    { from: 'quality', to: 'publish', label: '门禁通过' }, { from: 'publish', to: 'output', label: config.output },
+    { from: 'publish', to: 'consumer', label: 'SSE / 结果引用' }, { from: 'worker', to: 'otel', label: 'Trace / Metric' },
+  ];
+  const mappings = [
+    { processId: 'register', pfdStepIds: ['start', 'claim-task'], readStoreIds: [], writeStoreIds: ['pg', 'redis'] },
+    { processId: 'worker', pfdStepIds: ['lease-ok', 'idempotency', 'result-exists', 'validate-schema', 'authorize', 'load-inputs', 'retryable', 'retrying', 'failed'], readStoreIds: ['pg', 'redis'], writeStoreIds: ['pg', 'redis', 'otel'] },
+    { processId: 'domain', pfdStepIds: [...domain.steps.map((item) => item.id)], readStoreIds: ['minio'], writeStoreIds: [] },
+    { processId: 'quality', pfdStepIds: ['validate-artifact', 'artifact-valid'], readStoreIds: [], writeStoreIds: ['otel'] },
+    { processId: 'publish', pfdStepIds: ['publish', 'completed', 'emit-trace', 'reuse-result', 'delay-exit'], readStoreIds: ['pg'], writeStoreIds: ['pg', 'output', 'otel'] },
+  ];
+  const prefix = ['start', 'claim-task', 'lease-ok', 'idempotency', 'result-exists', 'validate-schema', 'authorize', 'load-inputs'];
+  const successSuffix = ['validate-artifact', 'artifact-valid', 'publish', 'completed', 'emit-trace'];
+  const retryPrefix = ['claim-task', 'lease-ok', 'idempotency', 'result-exists', 'validate-schema', 'authorize', 'load-inputs'];
+  const paths = {
+    normal: [...prefix, ...domain.primaryPath, ...successSuffix],
+    retry: [...prefix, ...domain.primaryPath, 'validate-artifact', 'artifact-valid', 'retryable', 'retrying', ...retryPrefix, ...domain.primaryPath, ...successSuffix],
+    failed: [...prefix, ...domain.primaryPath, 'validate-artifact', 'artifact-valid', 'retryable', 'failed'],
+  };
+  if (id === 'overview') {
+    const timeoutIndex = domain.primaryPath.indexOf(domain.timeoutFrom);
+    paths.timedout = [...prefix, ...domain.primaryPath.slice(0, timeoutIndex + 1), 'timed-out'];
+    paths.cancelled = ['start', 'claim-task', 'lease-ok', 'idempotency', 'result-exists', 'validate-schema', 'authorize', 'cancelled'];
+  }
+  const transitions = [
+    ...BASE_TRANSITIONS.map((item) => ({ ...item })),
+    { from: 'load-inputs', to: domain.entry, label: '输入就绪', kind: 'main' },
+    ...domain.transitions.map((item) => ({ ...item })),
+    { from: domain.exit, to: 'validate-artifact', label: domain.exit.includes('gate') ? '是 / 通过' : '领域结果', kind: 'main' },
+  ];
+  if (id === 'overview') {
+    transitions.push(
+      { from: 'authorize', to: 'cancelled', label: '收到取消信号', kind: 'failure' },
+      { from: domain.timeoutFrom, to: 'timed-out', label: '超过执行预算', kind: 'failure' },
+    );
+  }
+  const workerMapping = mappings.find((item) => item.processId === 'worker');
+  workerMapping.pfdStepIds.push('timed-out', 'cancelled');
+  return { id, title: config.title, summary: config.summary, dfd: { entities, processes, stores, flows }, pfd: { steps: [...COMMON_STEPS, ...domain.steps], domainStepIds: domain.steps.map((item) => item.id), transitions, paths, maxLoopTraversals: 1 }, mappings };
+}
+
+const EXECUTION_SCENARIOS = Object.freeze(Object.fromEntries(Object.entries(configs).map(([id, config]) => [id, makeScenario(id, config)])));
+
+function getExecutionScenario(id) {
+  return EXECUTION_SCENARIOS[id] ?? EXECUTION_SCENARIOS.overview;
+}
+
+function validateExecutionScenario(scenario) {
+  const errors = [];
+  const nodeIds = new Set([...scenario.dfd.entities, ...scenario.dfd.processes, ...scenario.dfd.stores].map((item) => item.id));
+  const processIds = new Set(scenario.dfd.processes.map((item) => item.id));
+  const storeIds = new Set(scenario.dfd.stores.map((item) => item.id));
+  const stepIds = new Set(scenario.pfd.steps.map((item) => item.id));
+  scenario.dfd.flows.forEach((flow) => {
+    if (!nodeIds.has(flow.from)) errors.push(`flow references unknown source ${flow.from}`);
+    if (!nodeIds.has(flow.to)) errors.push(`flow references unknown target ${flow.to}`);
+  });
+  scenario.mappings.forEach((mapping) => {
+    if (!processIds.has(mapping.processId)) errors.push(`mapping references unknown process ${mapping.processId}`);
+    mapping.pfdStepIds.forEach((id) => { if (!stepIds.has(id)) errors.push(`mapping ${mapping.processId} references unknown step ${id}`); });
+    [...mapping.readStoreIds, ...mapping.writeStoreIds].forEach((id) => { if (!storeIds.has(id)) errors.push(`mapping ${mapping.processId} references unknown store ${id}`); });
+  });
+  scenario.pfd.transitions.forEach((transition) => {
+    if (!stepIds.has(transition.from)) errors.push(`transition references unknown source ${transition.from}`);
+    if (!stepIds.has(transition.to)) errors.push(`transition references unknown target ${transition.to}`);
+  });
+  Object.values(scenario.pfd.paths).flat().forEach((id) => { if (!stepIds.has(id)) errors.push(`path references unknown step ${id}`); });
+  return errors;
+}
+
+return { EXECUTION_SCENARIOS, getExecutionScenario, validateExecutionScenario };
+})();
+const __executionEngine = (() => {
+
+function createExecutionPlayback(scenario, pathId = 'normal') {
+  const safePath = scenario.pfd.paths[pathId] ? pathId : 'normal';
+  const steps = scenario.pfd.paths[safePath];
+  return { pathId: safePath, cursor: 0, stepId: steps[0] ?? null, complete: steps.length <= 1 };
+}
+
+function stepExecutionPlayback(state, scenario) {
+  if (state.complete) return state;
+  const path = scenario.pfd.paths[state.pathId] ?? scenario.pfd.paths.normal;
+  const cursor = Math.min(state.cursor + 1, path.length - 1);
+  return { ...state, cursor, stepId: path[cursor], complete: cursor === path.length - 1 };
+}
+
+function resetExecutionPlayback(scenario, pathId = 'normal') {
+  return createExecutionPlayback(scenario, pathId);
+}
+
+
+return { createExecutionPlayback, stepExecutionPlayback, resetExecutionPlayback };
+})();
+const __dfdRenderer = (() => {
+
+const esc = (value = '') => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+
+function buildDfdModel(scenario, activeStepId, selectedProcessId) {
+  const mapped = scenario.mappings.find((item) => item.pfdStepIds.includes(activeStepId));
+  const activeProcessId = selectedProcessId ?? mapped?.processId ?? scenario.dfd.processes[0]?.id;
+  const activeMapping = scenario.mappings.find((item) => item.processId === activeProcessId) ?? mapped;
+  return { ...scenario.dfd, activeProcessId, activeStoreIds: [...new Set([...(activeMapping?.readStoreIds ?? []), ...(activeMapping?.writeStoreIds ?? [])])], mapping: activeMapping };
+}
+
+function renderDfd(model) {
+  const entityHtml = model.entities.map((item) => `<button type="button" class="dfd-entity" disabled><small>外部实体</small><strong>${esc(item.label)}</strong></button>`).join('');
+  const processHtml = model.processes.map((item, index) => `<button type="button" class="dfd-process${item.id === model.activeProcessId ? ' active' : ''}" data-dfd-process="${esc(item.id)}"><small>P${index + 1}</small><strong>${esc(item.label)}</strong><code>${esc(item.fn)}</code></button>`).join('<i class="dfd-arrow">→</i>');
+  const storeHtml = model.stores.map((item) => `<button type="button" class="dfd-store${model.activeStoreIds.includes(item.id) ? ' active' : ''}" disabled><small>DATA STORE</small><strong>${esc(item.label)}</strong><span>${esc(item.detail)}</span></button>`).join('');
+  const activeFlows = model.flows.filter((flow) => flow.from === model.activeProcessId || flow.to === model.activeProcessId).map((flow) => `<span>${esc(flow.from)} → ${esc(flow.to)} · ${esc(flow.label)}</span>`).join('');
+  return `<div class="dfd-entities">${entityHtml}</div><div class="dfd-processes">${processHtml}</div><div class="dfd-active-flow">${activeFlows || '<span>选择处理模块查看数据输入输出</span>'}</div><div class="dfd-stores">${storeHtml}</div>`;
+}
+
+
+return { buildDfdModel, renderDfd };
+})();
+const __pfdRenderer = (() => {
+
+const esc = (value = '') => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+const NODE_W = 210;
+const NODE_H = 64;
+
+const POSITIONS = Object.freeze({
+  start: [360, 20], 'claim-task': [360, 115], 'lease-ok': [360, 210],
+  'delay-exit': [40, 305], idempotency: [360, 305], 'result-exists': [360, 400],
+  'reuse-result': [40, 495], 'validate-schema': [360, 495], authorize: [360, 590],
+  cancelled: [690, 590], 'load-inputs': [360, 685], 'execute-domain': [360, 780],
+  'timed-out': [690, 780], 'validate-artifact': [360, 875], 'artifact-valid': [360, 970],
+  publish: [360, 1065], retryable: [690, 970], completed: [360, 1160],
+  retrying: [690, 1065], failed: [690, 1160], 'emit-trace': [360, 1255],
+});
+
+function transitionKey(from, to) { return `${from}--${to}`; }
+
+function edgePath(transition, positions) {
+  const source = positions.get(transition.from);
+  const target = positions.get(transition.to);
+  const sx = source.x + NODE_W / 2;
+  const sy = source.y + NODE_H;
+  const tx = target.x + NODE_W / 2;
+  const ty = target.y;
+  if (transition.kind === 'loop') {
+    const outerX = Math.max(source.x, target.x) + NODE_W + 70;
+    return `M ${source.x + NODE_W} ${source.y + NODE_H / 2} L ${outerX} ${source.y + NODE_H / 2} L ${outerX} ${target.y + NODE_H / 2} L ${target.x + NODE_W} ${target.y + NODE_H / 2}`;
+  }
+  if (Math.abs(sx - tx) < 2) return `M ${sx} ${sy} L ${tx} ${ty}`;
+  const bendY = sy + Math.max(20, (ty - sy) / 2);
+  return `M ${sx} ${sy} L ${sx} ${bendY} L ${tx} ${bendY} L ${tx} ${ty}`;
+}
+
+function buildPfdModel(scenario, activeStepId, pathId = 'normal', cursor) {
+  const path = scenario.pfd.paths[pathId] ?? scenario.pfd.paths.normal;
+  const activeIndex = Number.isInteger(cursor) ? cursor : Math.max(0, path.indexOf(activeStepId));
+  const topologyIds = new Set(scenario.pfd.transitions.flatMap((item) => [item.from, item.to]));
+  const steps = scenario.pfd.steps.filter((item) => topologyIds.has(item.id));
+  const layout = new Map(Object.entries(POSITIONS).map(([id, [x, y]]) => [id, { x, y }]));
+  scenario.pfd.domainStepIds.forEach((id) => {
+    const step = scenario.pfd.steps.find((item) => item.id === id);
+    if (step?.position) layout.set(id, { x: step.position[0], y: step.position[1] });
+  });
+  const domainBottom = Math.max(...scenario.pfd.domainStepIds.map((id) => layout.get(id).y));
+  const postY = domainBottom + 95;
+  layout.set('validate-artifact', { x: 360, y: postY });
+  layout.set('artifact-valid', { x: 360, y: postY + 95 });
+  layout.set('publish', { x: 360, y: postY + 190 });
+  layout.set('retryable', { x: 690, y: postY + 95 });
+  layout.set('completed', { x: 360, y: postY + 285 });
+  layout.set('retrying', { x: 690, y: postY + 190 });
+  layout.set('failed', { x: 690, y: postY + 285 });
+  layout.set('emit-trace', { x: 360, y: postY + 380 });
+  const positions = new Map(steps.map((item) => {
+    const position = layout.get(item.id) ?? { x: 360, y: 20 };
+    return [item.id, position];
+  }));
+  const orderedSteps = [...steps].sort((left, right) => {
+    const leftPosition = positions.get(left.id);
+    const rightPosition = positions.get(right.id);
+    return leftPosition.y - rightPosition.y || leftPosition.x - rightPosition.x;
+  });
+  const selectedPairs = new Set(path.slice(1).map((id, index) => transitionKey(path[index], id)));
+  const completedPairs = new Set(path.slice(1, activeIndex + 1).map((id, index) => transitionKey(path[index], id)));
+  const activePair = activeIndex > 0 ? transitionKey(path[activeIndex - 1], path[activeIndex]) : '';
+  const transitions = scenario.pfd.transitions.map((item) => ({
+    ...item,
+    id: transitionKey(item.from, item.to),
+    selected: selectedPairs.has(transitionKey(item.from, item.to)),
+    complete: completedPairs.has(transitionKey(item.from, item.to)),
+    active: transitionKey(item.from, item.to) === activePair,
+    path: edgePath(item, positions),
+  }));
+  return { steps: orderedSteps, transitions, positions, path, pathId: scenario.pfd.paths[pathId] ? pathId : 'normal', activeStepId, width: 1010, height: postY + 470 };
+}
+
+function renderPfd(model) {
+  const edges = model.transitions.map((item) => {
+    const source = model.positions.get(item.from);
+    const target = model.positions.get(item.to);
+    const labelX = item.kind === 'loop' ? 950 : (source.x + target.x) / 2 + NODE_W / 2;
+    const labelY = item.kind === 'loop' ? (source.y + target.y) / 2 : Math.min(source.y + NODE_H + 30, target.y - 8);
+    const classes = ['pfd-edge', item.kind, item.selected ? 'selected' : '', item.complete ? 'complete' : '', item.active ? 'active' : ''].filter(Boolean).join(' ');
+    return `<g class="${classes}" data-transition="${esc(item.id)}"><path d="${item.path}" marker-end="url(#pfd-arrowhead)"></path><text class="pfd-branch-label" x="${labelX}" y="${labelY}">${esc(item.label)}</text></g>`;
+  }).join('');
+  const nodes = model.steps.map((step, index) => {
+    const position = model.positions.get(step.id);
+    const classes = ['pfd-step', ...step.type.split(' '), model.path.includes(step.id) ? 'on-path' : '', step.id === model.activeStepId ? 'active' : ''].filter(Boolean).join(' ');
+    return `<button type="button" class="${classes}" style="left:${position.x}px;top:${position.y}px" data-pfd-step="${esc(step.id)}"><small>${String(index + 1).padStart(2, '0')}</small><strong>${esc(step.label)}</strong><code>${esc(step.fn)}</code></button>`;
+  }).join('');
+  return `<div class="pfd-topology path-${esc(model.pathId)}" style="width:${model.width}px;height:${model.height}px"><svg class="pfd-svg" viewBox="0 0 ${model.width} ${model.height}" aria-hidden="true"><defs><marker id="pfd-arrowhead" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z"></path></marker></defs>${edges}</svg>${nodes}</div>`;
+}
+
+return { buildPfdModel, renderPfd };
+})();
+const __executionController = (() => {
+const { getExecutionScenario } = __executionFlows;
+const { createExecutionPlayback, stepExecutionPlayback, resetExecutionPlayback } = __executionEngine;
+const { buildDfdModel } = __dfdRenderer;
+const { buildPfdModel } = __pfdRenderer;
+function createExecutionController(scenarioId = 'overview', pathId = 'normal') {
+  const scenario = getExecutionScenario(scenarioId);
+  let playback = createExecutionPlayback(scenario, pathId);
+  let selectedStepId = playback.stepId;
+  let selectedProcessId = scenario.mappings.find((item) => item.pfdStepIds.includes(selectedStepId))?.processId ?? scenario.dfd.processes[0]?.id;
+
+  const snapshot = () => ({ scenario, playback: { ...playback }, selectedStepId, selectedProcessId, dfd: buildDfdModel(scenario, selectedStepId, selectedProcessId), pfd: buildPfdModel(scenario, selectedStepId, playback.pathId, playback.cursor) });
+  return {
+    snapshot,
+    selectProcess(id) { const mapping = scenario.mappings.find((item) => item.processId === id); if (mapping) { selectedProcessId = id; selectedStepId = mapping.pfdStepIds[0]; } return snapshot(); },
+    selectStep(id) { if (scenario.pfd.steps.some((item) => item.id === id)) { selectedStepId = id; selectedProcessId = scenario.mappings.find((item) => item.pfdStepIds.includes(id))?.processId ?? selectedProcessId; } return snapshot(); },
+    setPath(id) { playback = resetExecutionPlayback(scenario, id); selectedStepId = playback.stepId; selectedProcessId = scenario.mappings.find((item) => item.pfdStepIds.includes(selectedStepId))?.processId ?? scenario.dfd.processes[0]?.id; return snapshot(); },
+    step() { playback = stepExecutionPlayback(playback, scenario); selectedStepId = playback.stepId; selectedProcessId = scenario.mappings.find((item) => item.pfdStepIds.includes(selectedStepId))?.processId ?? selectedProcessId; return snapshot(); },
+    reset() { playback = resetExecutionPlayback(scenario, playback.pathId); selectedStepId = playback.stepId; selectedProcessId = scenario.mappings.find((item) => item.pfdStepIds.includes(selectedStepId))?.processId ?? scenario.dfd.processes[0]?.id; return snapshot(); },
+  };
+}
+
+return { createExecutionController };
+})();
+const { parseHash, routeHash, ROUTES } = __navigation;
+const { FLOW_LANES, getFlowScenario } = __runtimeFlows;
+const { createPlayback, stepPlayback, resetPlayback, centeredScrollLeft } = __flowEngine;
+const { buildRuntimeGraphModel, renderRuntimeStage } = __flowRenderer;
+const { createExecutionController } = __executionController;
+const { renderDfd } = __dfdRenderer;
+const { renderPfd } = __pfdRenderer;
+const navButtons = [...document.querySelectorAll('[data-view-link]')];
+const views = [...document.querySelectorAll('[data-view]')];
+const sidebar = document.querySelector('.sidebar');
+const menuToggle = document.querySelector('.menu-toggle');
+const flowExplorer = document.querySelector('[data-flow-explorer]');
+const executionExplorer = document.querySelector('[data-execution-explorer]');
+let flowScenarioId = '';
+let flowState = createPlayback(0);
+let flowTimer = null;
+let selectedFlowNode = null;
+let executionController = null;
+let executionScenarioId = '';
+let executionTimer = null;
+
+const escapeHTML = (value = '') => String(value)
+  .replaceAll('&', '&amp;')
+  .replaceAll('<', '&lt;')
+  .replaceAll('>', '&gt;')
+  .replaceAll('"', '&quot;')
+  .replaceAll("'", '&#039;');
+
+function renderFlowInspector(node) {
+  if (!flowExplorer || !node) return;
+  const inspector = flowExplorer.querySelector('[data-flow-inspector]');
+  const lane = FLOW_LANES.find((item) => item.id === node.lane);
+  inspector.innerHTML = `
+    <div class="inspector-kicker mono">${escapeHTML(lane?.code)} / MODULE CONTRACT</div>
+    <h3>${escapeHTML(node.label)}</h3>
+    <code>${escapeHTML(node.fn)}</code>
+    <dl>
+      <div><dt>模块职责</dt><dd>${escapeHTML(node.responsibility)}</dd></div>
+      <div><dt>输入</dt><dd>${escapeHTML(node.input)}</dd></div>
+      <div><dt>输出</dt><dd>${escapeHTML(node.output)}</dd></div>
+      <div><dt>失败与降级</dt><dd>${escapeHTML(node.failure)}</dd></div>
+    </dl>`;
+}
+
+function renderFlowExplorer(scenarioId, reset = false) {
+  if (!flowExplorer) return;
+  const scenario = getFlowScenario(scenarioId);
+  if (reset || flowScenarioId !== scenario.id) {
+    clearInterval(flowTimer);
+    flowTimer = null;
+    flowScenarioId = scenario.id;
+    flowState = createPlayback(scenario.edges.length + 1);
+    selectedFlowNode = scenario.nodes[0]?.id ?? null;
+  }
+
+  flowExplorer.querySelector('[data-flow-eyebrow]').textContent = scenario.eyebrow;
+  flowExplorer.querySelector('[data-flow-title]').textContent = scenario.title;
+  flowExplorer.querySelector('[data-flow-summary]').textContent = scenario.summary;
+
+  const model = buildRuntimeGraphModel(scenario, flowState, selectedFlowNode, 1160, FLOW_LANES);
+  const { activeEdge, activeNodeId, positions, width, height } = model;
+
+  const stage = flowExplorer.querySelector('[data-flow-stage]');
+  stage.style.width = `${width}px`;
+  stage.style.height = `${height}px`;
+  stage.innerHTML = renderRuntimeStage(model, FLOW_LANES, escapeHTML);
+
+  const selected = scenario.nodes.find((item) => item.id === selectedFlowNode)
+    ?? scenario.nodes.find((item) => item.id === activeNodeId)
+    ?? scenario.nodes[0];
+  renderFlowInspector(selected);
+
+  const progress = Math.min(flowState.step + 1, scenario.edges.length + 1);
+  flowExplorer.querySelector('[data-flow-progress]').textContent = `STEP ${String(progress).padStart(2, '0')} / ${String(scenario.edges.length + 1).padStart(2, '0')}`;
+  flowExplorer.querySelector('[data-flow-transfer]').textContent = activeEdge
+    ? `${activeEdge.from} → ${activeEdge.to}`
+    : '起点就绪 · 等待流转';
+  flowExplorer.querySelector('[data-flow-payload]').textContent = activeEdge
+    ? `${activeEdge.kind.toUpperCase()}  ·  ${activeEdge.payload}${activeEdge.label ? `  ·  ${activeEdge.label}` : ''}`
+    : `${scenario.nodes[0]?.input ?? ''} → ${scenario.nodes[0]?.output ?? ''}`;
+  const playButton = flowExplorer.querySelector('[data-flow-action="play"]');
+  playButton.textContent = flowTimer ? 'Ⅱ 暂停' : flowState.complete ? '↻ 重播' : '▶ 播放';
+
+  if (activeNodeId) {
+    const viewport = flowExplorer.querySelector('[data-flow-viewport]');
+    const activePosition = positions.get(activeNodeId);
+    viewport?.scrollTo({
+      left: centeredScrollLeft(activePosition.x, 160, viewport.clientWidth, width),
+      behavior: 'smooth',
+    });
+  }
+}
+
+function stopFlowPlayback() {
+  clearInterval(flowTimer);
+  flowTimer = null;
+}
+
+function stopExecutionPlayback() {
+  clearInterval(executionTimer);
+  executionTimer = null;
+}
+
+function renderExecutionSnapshot(snapshot) {
+  if (!executionExplorer) return;
+  const { scenario, playback, selectedStepId, selectedProcessId, dfd, pfd } = snapshot;
+  executionExplorer.querySelector('[data-execution-title]').textContent = scenario.title;
+  executionExplorer.querySelector('[data-execution-summary]').textContent = scenario.summary;
+  executionExplorer.querySelector('[data-dfd-panel]').innerHTML = renderDfd(dfd);
+  executionExplorer.querySelector('[data-pfd-panel]').innerHTML = renderPfd(pfd);
+  const select = executionExplorer.querySelector('[data-execution-path]');
+  const pathLabels = { normal: '正常完成', retry: '可重试异常', failed: '不可重试失败', timedout: '任务超时', cancelled: '任务取消' };
+  const optionSignature = Object.keys(scenario.pfd.paths).join('|');
+  if (select.dataset.paths !== optionSignature) {
+    select.innerHTML = Object.keys(scenario.pfd.paths).map((id) => `<option value="${escapeHTML(id)}">${escapeHTML(pathLabels[id] ?? id)}</option>`).join('');
+    select.dataset.paths = optionSignature;
+  }
+  select.value = playback.pathId;
+  const path = scenario.pfd.paths[playback.pathId];
+  executionExplorer.querySelector('[data-execution-progress]').textContent = `STEP ${String(playback.cursor + 1).padStart(2, '0')} / ${String(path.length).padStart(2, '0')}`;
+  const step = scenario.pfd.steps.find((item) => item.id === selectedStepId);
+  const process = scenario.dfd.processes.find((item) => item.id === selectedProcessId);
+  const mapping = scenario.mappings.find((item) => item.processId === selectedProcessId);
+  const stores = [...new Set([...(mapping?.readStoreIds ?? []), ...(mapping?.writeStoreIds ?? [])])].map((id) => scenario.dfd.stores.find((item) => item.id === id)?.label).filter(Boolean);
+  executionExplorer.querySelector('[data-execution-contract]').innerHTML = `<span class="mono">STEP CONTRACT / ${escapeHTML(playback.pathId.toUpperCase())}</span><strong>${escapeHTML(step?.label ?? process?.label ?? '')}</strong><code>${escapeHTML(step?.fn ?? process?.fn ?? '')}</code><p>${escapeHTML(step?.detail ?? '选择模块查看执行契约。')}</p><div><b>关联模块</b><em>${escapeHTML(process?.label ?? '-')}</em><b>读写对象</b><em>${escapeHTML(stores.join(' · ') || '-')}</em></div>`;
+  const playButton = executionExplorer.querySelector('[data-execution-action="play"]');
+  playButton.textContent = executionTimer ? 'Ⅱ 暂停' : playback.complete ? '↻ 重播' : '▶ 播放';
+  const pfdPanel = executionExplorer.querySelector('[data-pfd-panel]');
+  const activeStep = pfdPanel?.querySelector('.pfd-step.active');
+  if (pfdPanel && activeStep) pfdPanel.scrollTo({ top: Math.max(0, activeStep.offsetTop - pfdPanel.clientHeight / 2), behavior: 'smooth' });
+}
+
+function renderExecutionExplorer(scenarioId, reset = false) {
+  if (!executionExplorer) return;
+  if (reset || executionScenarioId !== scenarioId || !executionController) {
+    stopExecutionPlayback();
+    executionScenarioId = scenarioId;
+    executionController = createExecutionController(scenarioId, 'normal');
+  }
+  renderExecutionSnapshot(executionController.snapshot());
+}
+
+function advanceExecution() {
+  const snapshot = executionController.step();
+  if (snapshot.playback.complete) stopExecutionPlayback();
+  renderExecutionSnapshot(snapshot);
+}
+
+function advanceFlow() {
+  const scenario = getFlowScenario(flowScenarioId);
+  flowState = stepPlayback(flowState, scenario.edges.length + 1);
+  const edge = scenario.edges[flowState.edge];
+  if (edge) selectedFlowNode = edge.to;
+  if (flowState.complete) stopFlowPlayback();
+  renderFlowExplorer(scenario.id);
+}
+
+function render() {
+  const state = parseHash(window.location.hash);
+
+  views.forEach((view) => {
+    view.hidden = view.dataset.view !== state.view;
+  });
+
+  navButtons.forEach((button) => {
+    const active = button.dataset.viewLink === state.view;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-current', active ? 'page' : 'false');
+  });
+
+  const activeView = document.querySelector(`[data-view="${state.view}"]`);
+  activeView?.querySelectorAll('[data-tab-link]').forEach((button) => {
+    const active = button.dataset.tabLink === state.tab;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+  activeView?.querySelectorAll('[data-tab-panel]').forEach((panel) => {
+    panel.hidden = panel.dataset.tabPanel !== state.tab;
+  });
+
+  document.title = '技术方案';
+  if (state.view === 'runtime') renderFlowExplorer(state.tab, true);
+  else stopFlowPlayback();
+  if (state.view === 'execution') renderExecutionExplorer(state.tab, true);
+  else stopExecutionPlayback();
+  sidebar?.classList.remove('open');
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+navButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    const view = button.dataset.viewLink;
+    window.location.hash = routeHash(view, ROUTES[view][0]);
+  });
+});
+
+document.addEventListener('click', (event) => {
+  const panelSwitch = event.target.closest('[data-execution-panel-switch]');
+  if (panelSwitch && executionExplorer) {
+    const panel = panelSwitch.dataset.executionPanelSwitch;
+    executionExplorer.querySelectorAll('[data-execution-panel-switch]').forEach((button) => button.classList.toggle('active', button === panelSwitch));
+    executionExplorer.querySelector('.dfd-panel')?.classList.toggle('mobile-active', panel === 'dfd');
+    executionExplorer.querySelector('.pfd-panel')?.classList.toggle('mobile-active', panel === 'pfd');
+    return;
+  }
+  const dfdProcess = event.target.closest('[data-dfd-process]');
+  if (dfdProcess && executionController) {
+    renderExecutionSnapshot(executionController.selectProcess(dfdProcess.dataset.dfdProcess));
+    return;
+  }
+  const pfdStep = event.target.closest('[data-pfd-step]');
+  if (pfdStep && executionController) {
+    renderExecutionSnapshot(executionController.selectStep(pfdStep.dataset.pfdStep));
+    return;
+  }
+  const executionAction = event.target.closest('[data-execution-action]');
+  if (executionAction && executionController) {
+    if (executionAction.dataset.executionAction === 'reset') {
+      stopExecutionPlayback();
+      renderExecutionSnapshot(executionController.reset());
+    } else if (executionAction.dataset.executionAction === 'step') {
+      stopExecutionPlayback();
+      advanceExecution();
+    } else if (executionTimer) {
+      stopExecutionPlayback();
+      renderExecutionSnapshot(executionController.snapshot());
+    } else {
+      if (executionController.snapshot().playback.complete) executionController.reset();
+      executionTimer = setInterval(advanceExecution, 900);
+      advanceExecution();
+    }
+    return;
+  }
+  const flowNode = event.target.closest('[data-flow-node]');
+  if (flowNode) {
+    selectedFlowNode = flowNode.dataset.flowNode;
+    renderFlowExplorer(flowScenarioId);
+    return;
+  }
+  const flowAction = event.target.closest('[data-flow-action]');
+  if (flowAction) {
+    const scenario = getFlowScenario(flowScenarioId);
+    if (flowAction.dataset.flowAction === 'reset') {
+      stopFlowPlayback();
+      flowState = resetPlayback();
+      selectedFlowNode = scenario.nodes[0]?.id;
+      renderFlowExplorer(scenario.id);
+    } else if (flowAction.dataset.flowAction === 'step') {
+      stopFlowPlayback();
+      advanceFlow();
+    } else if (flowTimer) {
+      stopFlowPlayback();
+      renderFlowExplorer(scenario.id);
+    } else {
+      if (flowState.complete) flowState = resetPlayback();
+      flowTimer = setInterval(advanceFlow, 1350);
+      advanceFlow();
+    }
+    return;
+  }
+  const button = event.target.closest('[data-tab-link]');
+  if (!button) return;
+  const view = button.closest('[data-view]')?.dataset.view;
+  if (!view) return;
+  window.location.hash = routeHash(view, button.dataset.tabLink);
+});
+
+executionExplorer?.querySelector('[data-execution-path]')?.addEventListener('change', (event) => {
+  stopExecutionPlayback();
+  renderExecutionSnapshot(executionController.setPath(event.target.value));
+});
+
+menuToggle?.addEventListener('click', () => sidebar?.classList.toggle('open'));
+window.addEventListener('hashchange', render);
+
+if (!window.location.hash) {
+  window.location.hash = routeHash('overview', 'summary');
+} else {
+  render();
+}
+
+})();</script>
+</body>
+</html>
